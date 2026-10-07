@@ -1,0 +1,18 @@
+{
+  "_comment": "Edit these values, save, then run run_weekly_report.py. Set week to null to auto-detect the upcoming week from today's date.",
+  "week": null,
+  "bankroll": 1000.0,
+  "mode": "kelly",
+  "kelly_multiplier": 0.25,
+  "flat_pct": 0.01,
+  "flat_dollars": null,
+  "max_stake_pct": 0.05,
+  "min_edge": 0.0,
+  "portfolio_cap": 0.15,
+  "source": "finder",
+  "input": null,
+  "top_n": 5,
+  "output": "weekly_parlay_report.txt",
+  "json_out": "weekly_parlay_report.json",
+  "open_when_done": true
+}

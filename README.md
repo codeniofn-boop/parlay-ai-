@@ -19,6 +19,22 @@ python3 weekly_reporter.py --selftest
 
 ---
 
+## Quick start without Terminal
+
+1. Download this branch from GitHub (green **Code** button, **Download ZIP**) and unzip it.
+2. Drag `staking_engine.py`, `weekly_reporter.py`, `run_weekly_report.py` and `pipeline_config.json`
+   into the folder that already holds `parlay_finder.py`.
+3. Open `pipeline_config.json` in any text editor and set your `bankroll` and `mode`
+   (`"kelly"` or `"flat"`). Leave `week` as `null` to auto-detect the upcoming week.
+4. Open `run_weekly_report.py` the same way you open your other scripts (IDLE, VS Code, PyCharm)
+   and press **Run**. The report prints on screen, is saved as `weekly_parlay_report.txt`, and opens
+   in TextEdit automatically.
+
+The **Pick Source** line in the report tells you whether it used `parlay_finder.py` or the simulated
+fallback slate.
+
+---
+
 ## 1. `staking_engine.py`
 
 ### Maths
