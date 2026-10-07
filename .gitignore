@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# macOS
+.DS_Store
+
+# Generated weekly outputs (committed examples live under examples/)
+/weekly_parlay_report.txt
+/weekly_parlay_report.json
+/reports/

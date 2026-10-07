@@ -1,0 +1,53 @@
+{
+  "week": 6,
+  "generated_by": "parlay_finder.py (hand-written example of the hand-off format)",
+  "parlays": [
+    {
+      "ticket_id": "W06-2L-01",
+      "week": 6,
+      "legs": [
+        {"matchup": "Kansas City Chiefs @ Buffalo Bills", "selection": "Buffalo Bills -3.5", "market": "spread", "american_odds": -110, "p_true": 0.56},
+        {"matchup": "Dallas Cowboys @ Philadelphia Eagles", "selection": "Over 44.5", "market": "total", "american_odds": -110, "p_true": 0.55}
+      ],
+      "notes": "Both legs independent; probabilities compounded by the reporter"
+    },
+    {
+      "ticket_id": "W06-2L-02",
+      "week": 6,
+      "legs": [
+        {"game": "San Francisco 49ers @ Seattle Seahawks", "line": "San Francisco 49ers -2.5", "market": "spread", "odds": "-112", "true_prob": 0.545},
+        {"game": "Baltimore Ravens @ Cincinnati Bengals", "line": "Under 47.5", "market": "total", "odds": "-105", "true_prob": 0.53}
+      ]
+    },
+    {
+      "ticket_id": "W06-2L-03",
+      "week": 6,
+      "legs": [
+        {"away": "Green Bay Packers", "home": "Detroit Lions", "team": "Detroit Lions", "spread": -3.0, "price": -115, "p_true": 0.50},
+        {"away": "Miami Dolphins", "home": "New York Jets", "total": 41.5, "direction": "under", "price": -110, "p_true": 0.51}
+      ],
+      "notes": "Marginal: expected to be PASSED by the staking engine"
+    },
+    {
+      "ticket_id": "W06-3L-04",
+      "week": 6,
+      "legs": [
+        {"matchup": "Kansas City Chiefs @ Buffalo Bills", "selection": "Buffalo Bills -3.5", "market": "spread", "american_odds": -110, "p_true": 0.56},
+        {"matchup": "Los Angeles Rams @ Arizona Cardinals", "selection": "Los Angeles Rams ML", "market": "moneyline", "american_odds": -135, "p_true": 0.60},
+        {"matchup": "Houston Texans @ Jacksonville Jaguars", "selection": "Over 45.5", "market": "total", "american_odds": -108, "p_true": 0.54}
+      ]
+    },
+    {
+      "ticket_id": "W06-3L-05-SGP",
+      "week": 6,
+      "legs": [
+        {"matchup": "Dallas Cowboys @ Philadelphia Eagles", "selection": "Philadelphia Eagles -3.5", "market": "spread", "american_odds": -110},
+        {"matchup": "Dallas Cowboys @ Philadelphia Eagles", "selection": "Over 44.5", "market": "total", "american_odds": -110},
+        {"matchup": "Dallas Cowboys @ Philadelphia Eagles", "selection": "Philadelphia Eagles ML", "market": "moneyline", "american_odds": -180}
+      ],
+      "p_true": 0.215,
+      "american_odds": 520,
+      "notes": "Same-game parlay: joint probability and book price supplied at ticket level"
+    }
+  ]
+}

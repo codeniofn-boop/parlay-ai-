@@ -1,0 +1,120 @@
+================================================================================
+                         NFL PARLAY WEEKLY REPORT CARD
+                      Simulated NFL Week 6  |  2026 Season
+                          Wednesday, October 07, 2026
+================================================================================
+  Generated        : 2026-10-07 22:32:52
+  Bankroll         : $1,000.00
+  Staking Mode     : Fractional Kelly Criterion  [Mode B]  -  0.25x Kelly
+  Safety Caps      : max 5% per ticket, max 15% total weekly exposure
+  Pick Source      : SIMULATED demo slate (no upstream data)
+  Slate            : 10 candidates  ->  7 recommended, 3 passed, 0 rejected
+--------------------------------------------------------------------------------
+
+TOP RECOMMENDED PARLAYS  -  2-LEG COMBINATIONS
+================================================================================
+  #1  Ticket W06-2L-06                                            RISK: $10.57
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    Leg 1 Dallas Cowboys @ Philadelphia Eagles   Under 45.5               (-112)
+    Leg 2 Green Bay Packers @ Detroit Lions      Over 41.5                (-112)
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    True Win Rate  :   30.96%    Book Implied   :   27.91%
+    Payout Odds    :     +258    Edge           :  +10.93%
+    To Win         :   $27.30    Expected Value :   +$1.16
+    Stake Basis    :    1.06% of bankroll
+    Notes: simulated slate
+
+  #2  Ticket W06-2L-02                                            RISK: $10.88
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    Leg 1 Dallas Cowboys @ Philadelphia Eagles   Dallas Cowboys ML        (-150)
+    Leg 2 Baltimore Ravens @ Cincinnati Bengals  Baltimore Ravens +2.5    (-118)
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    True Win Rate  :   35.42%    Book Implied   :   32.48%
+    Payout Odds    :     +208    Edge           :   +9.05%
+    To Win         :   $22.62    Expected Value :   +$0.99
+    Stake Basis    :    1.09% of bankroll
+    Notes: simulated slate
+
+  #3  Ticket W06-2L-05                                             RISK: $8.33
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    Leg 1 Los Angeles Rams @ Arizona Cardinals   Under 47                 (-110)
+    Leg 2 Houston Texans @ Jacksonville Jaguars  Houston Texans +6.5      (-118)
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    True Win Rate  :   30.74%    Book Implied   :   28.35%
+    Payout Odds    :     +253    Edge           :   +8.42%
+    To Win         :   $21.05    Expected Value :   +$0.70
+    Stake Basis    :    0.83% of bankroll
+    Notes: simulated slate
+
+  #4  Ticket W06-2L-03                                             RISK: $8.46
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    Leg 1 Kansas City Chiefs @ Buffalo Bills     Kansas City Chiefs ML    (-150)
+    Leg 2 Green Bay Packers @ Detroit Lions      Detroit Lions -2.5       (-110)
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    True Win Rate  :   33.75%    Book Implied   :   31.43%
+    Payout Odds    :     +218    Edge           :   +7.39%
+    To Win         :   $18.46    Expected Value :   +$0.62
+    Stake Basis    :    0.85% of bankroll
+    Notes: simulated slate
+
+  #5  Ticket W06-2L-01                                             RISK: $5.71
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    Leg 1 Miami Dolphins @ New York Jets         Miami Dolphins ML        (-150)
+    Leg 2 Dallas Cowboys @ Philadelphia Eagles   Dallas Cowboys +4.5      (-110)
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    True Win Rate  :   33.00%    Book Implied   :   31.43%
+    Payout Odds    :     +218    Edge           :   +4.99%
+    To Win         :   $12.46    Expected Value :   +$0.28
+    Stake Basis    :    0.57% of bankroll
+    Notes: simulated slate
+
+TOP RECOMMENDED PARLAYS  -  3-LEG COMBINATIONS
+================================================================================
+  #1  Ticket W06-3L-07                                            RISK: $15.70
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    Leg 1 San Francisco 49ers @ Seattle Seahawks Seattle Seahawks -1.5    (-110)
+    Leg 2 Los Angeles Rams @ Arizona Cardinals   Arizona Cardinals -3     (-118)
+    Leg 3 Houston Texans @ Jacksonville Jaguars  Jacksonville Jaguars ML  (-150)
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    True Win Rate  :   22.23%    Book Implied   :   17.01%
+    Payout Odds    :     +488    Edge           :  +30.65%
+    To Win         :   $76.59    Expected Value :   +$4.81
+    Stake Basis    :    1.57% of bankroll
+    Notes: simulated slate
+
+  #2  Ticket W06-3L-09                                             RISK: $4.12
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    Leg 1 Kansas City Chiefs @ Buffalo Bills     Kansas City Chiefs +3.5  (-115)
+    Leg 2 Dallas Cowboys @ Philadelphia Eagles   Dallas Cowboys ML        (+135)
+    Leg 3 San Francisco 49ers @ Seattle Seahawks Under 51.5               (-108)
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    True Win Rate  :   13.27%    Book Implied   :   11.82%
+    Payout Odds    :     +746    Edge           :  +12.32%
+    To Win         :   $30.74    Expected Value :   +$0.51
+    Stake Basis    :    0.41% of bankroll
+    Notes: simulated slate
+
+WEEKLY EXPOSURE SUMMARY
+================================================================================
+  Tickets to Place : 7
+  Total Risk       : $63.77  (6.38% of bankroll)
+  Total To Win     : $209.22  (if every ticket hits)
+  Expected Value   : +$9.07
+  Bankroll After   : $936.23 reserved / $1,000.00 total
+
+PASSED (NO BET)  -  TICKETS THAT FAILED THE STAKING FILTERS
+================================================================================
+  W06-2L-04    2L    +270  P=24.7%  Imp=27.1%  Edge=-8.8%
+               Green Bay Packers +3 / Houston Texans +4.5
+               -> Negative/zero edge (-0.0881); no bet
+  W06-3L-10    3L    +692  P=11.5%  Imp=12.6%  Edge=-8.8%
+               Over 45.5 / Miami Dolphins +6.5 / Baltimore Ravens ML
+               -> Negative/zero edge (-0.0884); no bet
+  W06-3L-08    3L   +1017  P=8.0%  Imp=9.0%  Edge=-10.8%
+               Detroit Lions -6.5 / Cincinnati Bengals ML / Miami Dolphins ML
+               -> Negative/zero edge (-0.1080); no bet
+
+--------------------------------------------------------------------------------
+    Edge = (P_true x Decimal Odds) - 1   |   Stakes rounded DOWN to the cent
+                    For simulation / research purposes only
+================================================================================
