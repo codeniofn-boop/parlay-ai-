@@ -12,6 +12,7 @@ backtesting +EV NFL parlays. Every module ships with a built-in self-test.
 | `run_weekly_report.py` | Zero-argument launcher for the weekly report (press Run, no Terminal). |
 | `pipeline_config.json` | The one settings file: bankroll, staking mode, finder and backtester options. |
 | `week_inputs.csv` + `build_lines.py` | This week's games, odds and model numbers (15 rows) and the expander that turns them into `lines.csv`. |
+| `report_template.html` + `publish_report.py` | The shareable web page: every weekly run also writes `docs/index.html`, a static page with a live bankroll box and Flat/Kelly switch. |
 
 ```
 parlay_finder.py ──► weekly_reporter.py ──► staking_engine.py ──► weekly_parlay_report.txt
@@ -37,6 +38,21 @@ league inside `parlay_finder.py`, clearly labelled "NOT real games". To use real
 `lines.csv` into the folder; see **Using real lines**. For live lines without typing, sign up for a
 free key at https://the-odds-api.com, paste it as `"api_key"` under `finder` in
 `pipeline_config.json`, and set `"source": "api"`.
+
+## The web page (share it)
+
+Every weekly run also writes **`docs/index.html`**: a self-contained page showing the same tickets as
+the text report, with a bankroll box and a Flat / Kelly switch that resize every stake in the browser
+using the same formulas and caps as `staking_engine.py` (the two are checked against each other to the
+cent). It needs no server. Open it by double-clicking, or publish it:
+
+* **GitHub Pages:** in the repository go to Settings, then Pages, choose "Deploy from a branch", pick
+  this branch and the `/docs` folder, and save. The page appears at
+  `https://<your-user>.github.io/parlay-ai-/` and updates whenever you push a new `docs/index.html`.
+* **Any static host:** upload `docs/index.html` on its own; it has no other files.
+
+Rebuild it by hand with `python3 publish_report.py` (reads `weekly_parlay_report.json`). The page
+labels simulated slates plainly and carries a research-only disclaimer and problem-gambling helpline.
 
 ## Quick start with Terminal
 

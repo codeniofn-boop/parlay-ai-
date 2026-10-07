@@ -56,6 +56,7 @@ DEFAULTS: Dict[str, Any] = {
     "top_n": 5,
     "output": "weekly_parlay_report.txt",
     "json_out": "weekly_parlay_report.json",
+    "html_out": "docs/index.html",
     "open_when_done": True,
     # Sections read directly by parlay_finder.py and backtester.py; accepted
     # here so they never trigger an "unknown setting" warning.
@@ -164,6 +165,20 @@ def main() -> int:
     print(f"Saved: {out_path}")
     if cfg["json_out"]:
         print(f"Saved: {os.path.abspath(str(cfg['json_out']))}")
+    if cfg["html_out"]:
+        # The shareable web page: same numbers as the text report, with a live
+        # bankroll box and staking switch. Never fatal if the template is missing.
+        try:
+            from publish_report import PublishError, build_html
+            html_path = os.path.abspath(str(cfg["html_out"]))
+            os.makedirs(os.path.dirname(html_path) or ".", exist_ok=True)
+            with open(html_path, "w", encoding="utf-8") as fh:
+                fh.write(build_html(report.to_dict()))
+            print(f"Saved: {html_path}  (web page; open it in any browser or share it)")
+        except ImportError:
+            print("(publish_report.py not found next to this script; web page skipped)")
+        except (PublishError, OSError) as exc:
+            print(f"(web page not written: {exc})")
     if cfg["open_when_done"]:
         open_file(out_path)
     return 0
