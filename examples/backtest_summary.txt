@@ -1,0 +1,55 @@
+================================================================================
+                          NFL PARLAY BACKTEST SUMMARY
+               20 simulated season(s) x 18 weeks  |  2026 ratings
+================================================================================
+  Generated         : 2026-10-07 23:06:09
+  Starting Bankroll : $1,000.00
+  Pick Source       : parlay_finder.py, simulated league
+  Model Settings    : skill 0.50, noise 0.75 pt (null control included)
+  Safety Caps       : max 5% per ticket, max 15% weekly exposure
+  Tickets Per Week  : top 5 per leg size
+  Calibration       : claimed 25.4% avg win prob, hit 24.2% (n=6,570)
+  Null Calibration  : claimed 24.8% avg win prob, hit 18.8% (n=5,902)
+--------------------------------------------------------------------------------
+
+RETURNS BY STAKING POLICY  (one outcome per season)
+================================================================================
+  Policy              Median End  Med Growth   P05 End   P95 End  P(profit)
+  ------------------ ----------- ----------- --------- --------- ----------
+  flat_1pct               $1,416      +41.6%      $661    $2,058        75%
+  flat_$10                $1,425      +42.5%      $660    $1,949        75%
+  kelly_0.1               $1,325      +32.5%      $691    $2,093        80%
+  kelly_0.25              $1,437      +43.7%      $553    $2,253        70%
+  flat_1pct [null]          $802      -19.8%      $490    $1,102        30%
+  flat_$10 [null]           $865      -13.5%      $478    $1,197        30%
+  kelly_0.1 [null]          $879      -12.1%      $666    $1,163        30%
+  kelly_0.25 [null]         $792      -20.8%      $400    $1,127        20%
+
+RISK AND ACTIVITY BY STAKING POLICY
+================================================================================
+  Policy               MedDD  WorstDD  P(DD>50) P(ruin) Bets/yr   Win%     ROI
+  ------------------ ------- -------- --------- ------- ------- ------ -------
+  flat_1pct            28.1%    49.5%        0%      0%     180  27.1%  +17.1%
+  flat_$10             24.0%    49.5%        0%      0%     180  27.1%  +21.5%
+  kelly_0.1            25.0%    52.0%        5%      0%     180  27.1%  +18.3%
+  kelly_0.25           31.1%    59.1%        5%      0%     180  27.1%  +13.7%
+  flat_1pct [null]     37.9%    59.1%       10%      0%     177  19.6%  -16.1%
+  flat_$10 [null]      35.9%    59.9%       20%      0%     177  19.6%  -13.7%
+  kelly_0.1 [null]     25.4%    43.6%        0%      0%     177  19.9%  -14.5%
+  kelly_0.25 [null]    41.2%    66.1%       20%      0%     177  19.9%  -16.2%
+
+HOW TO READ THIS
+================================================================================
+  Median End / Med Growth: the typical season's finishing bankroll and return.
+  P05 / P95 End: a bad (1-in-20) and a good (1-in-20) season.
+  P(profit): share of seasons that finished above the starting bankroll.
+  Med MaxDD / Worst DD: typical and worst peak-to-trough bankroll decline.
+  P(ruin): share of seasons ending with under 5% of the starting bankroll.
+  ROI: profit per dollar staked. Win%: decided tickets won (pushes excluded).
+  Calibration compares what the model claimed with what actually hit; a
+  claimed rate well above the hit rate means the model is over-confident.
+  Rows tagged [null] use a model with NO real information: a policy that
+  still 'wins' there is riding luck, not edge.
+--------------------------------------------------------------------------------
+                    For simulation / research purposes only
+================================================================================

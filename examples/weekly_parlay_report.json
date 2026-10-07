@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-07T22:32:52",
+  "generated_at": "2026-10-07T23:06:03",
   "config": {
     "week": 6,
     "season": 2026,
@@ -23,70 +23,70 @@
       3
     ],
     "portfolio_cap_pct": 0.15,
-    "source_label": "SIMULATED demo slate (no upstream data)"
+    "source_label": "parlay_finder.py"
   },
   "summary": {
     "tickets_collected": 10,
-    "tickets_recommended": 7,
-    "tickets_passed": 3,
+    "tickets_recommended": 10,
+    "tickets_passed": 0,
     "tickets_rejected": 0,
-    "total_risk": 63.77,
-    "total_risk_pct_of_bankroll": 0.06377000000000001,
-    "total_expected_value": 9.07,
-    "total_potential_profit": 209.22
+    "total_risk": 149.95,
+    "total_risk_pct_of_bankroll": 0.14995,
+    "total_expected_value": 40.44,
+    "total_potential_profit": 563.17
   },
   "sections": {
     "2-LEG": [
       {
         "rank": 1,
         "ticket": {
-          "ticket_id": "W06-2L-06",
+          "ticket_id": "W06-2L-01",
           "week": 6,
           "n_legs": 2,
           "legs": [
             {
-              "matchup": "Dallas Cowboys @ Philadelphia Eagles",
-              "selection": "Under 45.5",
+              "matchup": "Los Angeles Chargers @ Tennessee Titans",
+              "selection": "Over 45.5",
               "market": "total",
-              "p_true": 0.5685,
-              "decimal_odds": 1.8928571428571428,
-              "american_odds": -112
+              "p_true": 0.597764,
+              "decimal_odds": 1.9090909090909092,
+              "american_odds": -110
             },
             {
-              "matchup": "Green Bay Packers @ Detroit Lions",
-              "selection": "Over 41.5",
+              "matchup": "Los Angeles Rams @ Miami Dolphins",
+              "selection": "Under 50",
               "market": "total",
-              "p_true": 0.5446,
-              "decimal_odds": 1.8928571428571428,
-              "american_odds": -112
+              "p_true": 0.589049,
+              "decimal_odds": 1.9090909090909092,
+              "american_odds": -110
             }
           ],
-          "p_true": 0.30960509999999997,
-          "decimal_odds": 3.582908163265306,
-          "american_odds": 258,
-          "implied_prob": 0.2791028835884657,
-          "edge": 0.10928664017857126,
-          "notes": "simulated slate",
-          "source": "demo"
+          "p_true": 0.352113,
+          "decimal_odds": 3.644628,
+          "american_odds": 264,
+          "implied_prob": 0.27437642469958523,
+          "edge": 0.2833208989639999,
+          "notes": "model 35.2% vs market fair 25.3%; legs: Over 45.5 (+14.1%), Under 50 (+12.5%)",
+          "source": "finder"
         },
         "stake": {
           "bankroll": 1000.0,
-          "p_true": 0.30960509999999997,
-          "decimal_odds": 3.582908163265306,
-          "american_odds": 258,
-          "implied_prob": 0.2791028835884657,
-          "edge": 0.10928664017857126,
+          "p_true": 0.352113,
+          "decimal_odds": 3.644628,
+          "american_odds": 264,
+          "implied_prob": 0.27437642469958523,
+          "edge": 0.2833208989639999,
           "mode": "kelly",
-          "raw_fraction": 0.010577867395061712,
-          "capped_fraction": 0.01057,
-          "stake_dollars": 10.57,
-          "potential_profit": 27.301339285714285,
-          "potential_payout": 37.871339285714285,
-          "expected_value": 1.1551597866874983,
-          "cap_applied": false,
+          "raw_fraction": 0.02678267973454111,
+          "capped_fraction": 0.02225,
+          "stake_dollars": 22.25,
+          "potential_profit": 58.842973,
+          "potential_payout": 81.092973,
+          "expected_value": 6.303890001948998,
+          "cap_applied": true,
           "skipped": false,
-          "reason": "0.25x Kelly (full Kelly 4.23%)",
-          "ticket_id": "W06-2L-06",
+          "reason": "0.25x Kelly (full Kelly 10.71%); portfolio-scaled x0.831 to respect 15% weekly cap",
+          "ticket_id": "W06-2L-01",
           "error": null
         }
       },
@@ -98,47 +98,47 @@
           "n_legs": 2,
           "legs": [
             {
-              "matchup": "Dallas Cowboys @ Philadelphia Eagles",
-              "selection": "Dallas Cowboys ML",
-              "market": "moneyline",
-              "p_true": 0.6206,
-              "decimal_odds": 1.6666666666666665,
-              "american_odds": -150
+              "matchup": "Los Angeles Chargers @ Tennessee Titans",
+              "selection": "Over 45.5",
+              "market": "total",
+              "p_true": 0.597764,
+              "decimal_odds": 1.9090909090909092,
+              "american_odds": -110
             },
             {
-              "matchup": "Baltimore Ravens @ Cincinnati Bengals",
-              "selection": "Baltimore Ravens +2.5",
-              "market": "spread",
-              "p_true": 0.5707,
-              "decimal_odds": 1.847457627118644,
-              "american_odds": -118
+              "matchup": "Minnesota Vikings @ Denver Broncos",
+              "selection": "Under 46",
+              "market": "total",
+              "p_true": 0.574342,
+              "decimal_odds": 1.8695652173913042,
+              "american_odds": -115
             }
           ],
-          "p_true": 0.35417642,
-          "decimal_odds": 3.0790960451977396,
-          "american_odds": 208,
-          "implied_prob": 0.32477064220183494,
-          "edge": 0.09054321412429367,
-          "notes": "simulated slate",
-          "source": "demo"
+          "p_true": 0.343321,
+          "decimal_odds": 3.56917,
+          "american_odds": 257,
+          "implied_prob": 0.28017718405119396,
+          "edge": 0.22537101357,
+          "notes": "model 34.3% vs market fair 25.8%; legs: Over 45.5 (+14.1%), Under 46 (+7.4%)",
+          "source": "finder"
         },
         "stake": {
           "bankroll": 1000.0,
-          "p_true": 0.35417642,
-          "decimal_odds": 3.0790960451977396,
-          "american_odds": 208,
-          "implied_prob": 0.32477064220183494,
-          "edge": 0.09054321412429367,
+          "p_true": 0.343321,
+          "decimal_odds": 3.56917,
+          "american_odds": 257,
+          "implied_prob": 0.28017718405119396,
+          "edge": 0.22537101357,
           "mode": "kelly",
-          "raw_fraction": 0.010887329415760857,
-          "capped_fraction": 0.01088,
-          "stake_dollars": 10.88,
-          "potential_profit": 22.62056497175141,
-          "potential_payout": 33.50056497175141,
-          "expected_value": 0.9851101696723152,
-          "cap_applied": false,
+          "raw_fraction": 0.02193033290615257,
+          "capped_fraction": 0.01822,
+          "stake_dollars": 18.22,
+          "potential_profit": 46.8102774,
+          "potential_payout": 65.0302774,
+          "expected_value": 4.1062598672454,
+          "cap_applied": true,
           "skipped": false,
-          "reason": "0.25x Kelly (full Kelly 4.35%)",
+          "reason": "0.25x Kelly (full Kelly 8.77%); portfolio-scaled x0.831 to respect 15% weekly cap",
           "ticket_id": "W06-2L-02",
           "error": null
         }
@@ -146,159 +146,159 @@
       {
         "rank": 3,
         "ticket": {
-          "ticket_id": "W06-2L-05",
+          "ticket_id": "W06-2L-03",
           "week": 6,
           "n_legs": 2,
           "legs": [
             {
-              "matchup": "Los Angeles Rams @ Arizona Cardinals",
-              "selection": "Under 47",
+              "matchup": "Los Angeles Chargers @ Tennessee Titans",
+              "selection": "Over 45.5",
               "market": "total",
-              "p_true": 0.5236,
+              "p_true": 0.597764,
               "decimal_odds": 1.9090909090909092,
               "american_odds": -110
             },
             {
-              "matchup": "Houston Texans @ Jacksonville Jaguars",
-              "selection": "Houston Texans +6.5",
-              "market": "spread",
-              "p_true": 0.5871,
-              "decimal_odds": 1.847457627118644,
-              "american_odds": -118
+              "matchup": "Las Vegas Raiders @ Dallas Cowboys",
+              "selection": "Over 47",
+              "market": "total",
+              "p_true": 0.562572,
+              "decimal_odds": 1.9090909090909092,
+              "american_odds": -110
             }
           ],
-          "p_true": 0.30740555999999997,
-          "decimal_odds": 3.526964560862866,
-          "american_odds": 253,
-          "implied_prob": 0.2835299257317606,
-          "edge": 0.08420851593220324,
-          "notes": "simulated slate",
-          "source": "demo"
+          "p_true": 0.336285,
+          "decimal_odds": 3.644628,
+          "american_odds": 264,
+          "implied_prob": 0.27437642469958523,
+          "edge": 0.22563372697999995,
+          "notes": "model 33.6% vs market fair 25.3%; legs: Over 45.5 (+14.1%), Over 47 (+7.4%)",
+          "source": "finder"
         },
         "stake": {
           "bankroll": 1000.0,
-          "p_true": 0.30740555999999997,
-          "decimal_odds": 3.526964560862866,
-          "american_odds": 253,
-          "implied_prob": 0.2835299257317606,
-          "edge": 0.08420851593220324,
+          "p_true": 0.336285,
+          "decimal_odds": 3.644628,
+          "american_odds": 264,
+          "implied_prob": 0.27437642469958523,
+          "edge": 0.22563372697999995,
           "mode": "kelly",
-          "raw_fraction": 0.008330994945121937,
-          "capped_fraction": 0.00833,
-          "stake_dollars": 8.33,
-          "potential_profit": 21.049614791987672,
-          "potential_payout": 29.379614791987674,
-          "expected_value": 0.701456937715253,
-          "cap_applied": false,
+          "raw_fraction": 0.021329439053432084,
+          "capped_fraction": 0.01772,
+          "stake_dollars": 17.72,
+          "potential_profit": 46.86280816,
+          "potential_payout": 64.58280816,
+          "expected_value": 3.9982296420855987,
+          "cap_applied": true,
           "skipped": false,
-          "reason": "0.25x Kelly (full Kelly 3.33%)",
-          "ticket_id": "W06-2L-05",
+          "reason": "0.25x Kelly (full Kelly 8.53%); portfolio-scaled x0.831 to respect 15% weekly cap",
+          "ticket_id": "W06-2L-03",
           "error": null
         }
       },
       {
         "rank": 4,
         "ticket": {
-          "ticket_id": "W06-2L-03",
+          "ticket_id": "W06-2L-04",
           "week": 6,
           "n_legs": 2,
           "legs": [
             {
-              "matchup": "Kansas City Chiefs @ Buffalo Bills",
-              "selection": "Kansas City Chiefs ML",
-              "market": "moneyline",
-              "p_true": 0.6212,
-              "decimal_odds": 1.6666666666666665,
-              "american_odds": -150
-            },
-            {
-              "matchup": "Green Bay Packers @ Detroit Lions",
-              "selection": "Detroit Lions -2.5",
-              "market": "spread",
-              "p_true": 0.5433,
+              "matchup": "Los Angeles Rams @ Miami Dolphins",
+              "selection": "Under 50",
+              "market": "total",
+              "p_true": 0.589049,
               "decimal_odds": 1.9090909090909092,
               "american_odds": -110
+            },
+            {
+              "matchup": "Minnesota Vikings @ Denver Broncos",
+              "selection": "Under 46",
+              "market": "total",
+              "p_true": 0.574342,
+              "decimal_odds": 1.8695652173913042,
+              "american_odds": -115
             }
           ],
-          "p_true": 0.33749796,
-          "decimal_odds": 3.1818181818181817,
-          "american_odds": 218,
-          "implied_prob": 0.3142857142857143,
-          "edge": 0.07385714545454536,
-          "notes": "simulated slate",
-          "source": "demo"
+          "p_true": 0.338316,
+          "decimal_odds": 3.56917,
+          "american_odds": 257,
+          "implied_prob": 0.28017718405119396,
+          "edge": 0.20750731771999997,
+          "notes": "model 33.8% vs market fair 25.5%; legs: Under 50 (+12.5%), Under 46 (+7.4%)",
+          "source": "finder"
         },
         "stake": {
           "bankroll": 1000.0,
-          "p_true": 0.33749796,
-          "decimal_odds": 3.1818181818181817,
-          "american_odds": 218,
-          "implied_prob": 0.3142857142857143,
-          "edge": 0.07385714545454536,
+          "p_true": 0.338316,
+          "decimal_odds": 3.56917,
+          "american_odds": 257,
+          "implied_prob": 0.28017718405119396,
+          "edge": 0.20750731771999997,
           "mode": "kelly",
-          "raw_fraction": 0.008462797916666657,
-          "capped_fraction": 0.00846,
-          "stake_dollars": 8.46,
-          "potential_profit": 18.458181818181817,
-          "potential_payout": 26.918181818181818,
-          "expected_value": 0.6248314505454537,
-          "cap_applied": false,
+          "raw_fraction": 0.02019205791364526,
+          "capped_fraction": 0.01678,
+          "stake_dollars": 16.78,
+          "potential_profit": 43.11067260000001,
+          "potential_payout": 59.89067260000001,
+          "expected_value": 3.4819727913415996,
+          "cap_applied": true,
           "skipped": false,
-          "reason": "0.25x Kelly (full Kelly 3.39%)",
-          "ticket_id": "W06-2L-03",
+          "reason": "0.25x Kelly (full Kelly 8.08%); portfolio-scaled x0.831 to respect 15% weekly cap",
+          "ticket_id": "W06-2L-04",
           "error": null
         }
       },
       {
         "rank": 5,
         "ticket": {
-          "ticket_id": "W06-2L-01",
+          "ticket_id": "W06-2L-05",
           "week": 6,
           "n_legs": 2,
           "legs": [
             {
-              "matchup": "Miami Dolphins @ New York Jets",
-              "selection": "Miami Dolphins ML",
-              "market": "moneyline",
-              "p_true": 0.6503,
-              "decimal_odds": 1.6666666666666665,
-              "american_odds": -150
+              "matchup": "Los Angeles Rams @ Miami Dolphins",
+              "selection": "Under 50",
+              "market": "total",
+              "p_true": 0.589049,
+              "decimal_odds": 1.9090909090909092,
+              "american_odds": -110
             },
             {
-              "matchup": "Dallas Cowboys @ Philadelphia Eagles",
-              "selection": "Dallas Cowboys +4.5",
-              "market": "spread",
-              "p_true": 0.5074,
+              "matchup": "Las Vegas Raiders @ Dallas Cowboys",
+              "selection": "Over 47",
+              "market": "total",
+              "p_true": 0.562572,
               "decimal_odds": 1.9090909090909092,
               "american_odds": -110
             }
           ],
-          "p_true": 0.32996222,
-          "decimal_odds": 3.1818181818181817,
-          "american_odds": 218,
-          "implied_prob": 0.3142857142857143,
-          "edge": 0.04987979090909067,
-          "notes": "simulated slate",
-          "source": "demo"
+          "p_true": 0.331382,
+          "decimal_odds": 3.644628,
+          "american_odds": 264,
+          "implied_prob": 0.27437642469958523,
+          "edge": 0.20776411589599997,
+          "notes": "model 33.1% vs market fair 25.0%; legs: Under 50 (+12.5%), Over 47 (+7.4%)",
+          "source": "finder"
         },
         "stake": {
           "bankroll": 1000.0,
-          "p_true": 0.32996222,
-          "decimal_odds": 3.1818181818181817,
-          "american_odds": 218,
-          "implied_prob": 0.3142857142857143,
-          "edge": 0.04987979090909067,
+          "p_true": 0.331382,
+          "decimal_odds": 3.644628,
+          "american_odds": 264,
+          "implied_prob": 0.27437642469958523,
+          "edge": 0.20776411589599997,
           "mode": "kelly",
-          "raw_fraction": 0.005715392708333307,
-          "capped_fraction": 0.00571,
-          "stake_dollars": 5.71,
-          "potential_profit": 12.458181818181817,
-          "potential_payout": 18.168181818181818,
-          "expected_value": 0.2848136060909077,
-          "cap_applied": false,
+          "raw_fraction": 0.019640202317301333,
+          "capped_fraction": 0.01632,
+          "stake_dollars": 16.32,
+          "potential_profit": 43.16032896,
+          "potential_payout": 59.48032896,
+          "expected_value": 3.3907103714227196,
+          "cap_applied": true,
           "skipped": false,
-          "reason": "0.25x Kelly (full Kelly 2.29%)",
-          "ticket_id": "W06-2L-01",
+          "reason": "0.25x Kelly (full Kelly 7.86%); portfolio-scaled x0.831 to respect 15% weekly cap",
+          "ticket_id": "W06-2L-05",
           "error": null
         }
       }
@@ -307,303 +307,310 @@
       {
         "rank": 1,
         "ticket": {
-          "ticket_id": "W06-3L-07",
+          "ticket_id": "W06-3L-01",
           "week": 6,
           "n_legs": 3,
           "legs": [
             {
-              "matchup": "San Francisco 49ers @ Seattle Seahawks",
-              "selection": "Seattle Seahawks -1.5",
-              "market": "spread",
-              "p_true": 0.5896,
+              "matchup": "Los Angeles Chargers @ Tennessee Titans",
+              "selection": "Over 45.5",
+              "market": "total",
+              "p_true": 0.597764,
               "decimal_odds": 1.9090909090909092,
               "american_odds": -110
             },
             {
-              "matchup": "Los Angeles Rams @ Arizona Cardinals",
-              "selection": "Arizona Cardinals -3",
-              "market": "spread",
-              "p_true": 0.5778,
-              "decimal_odds": 1.847457627118644,
-              "american_odds": -118
+              "matchup": "Los Angeles Rams @ Miami Dolphins",
+              "selection": "Under 50",
+              "market": "total",
+              "p_true": 0.589049,
+              "decimal_odds": 1.9090909090909092,
+              "american_odds": -110
             },
             {
-              "matchup": "Houston Texans @ Jacksonville Jaguars",
-              "selection": "Jacksonville Jaguars ML",
+              "matchup": "Arizona Cardinals @ Buffalo Bills",
+              "selection": "Buffalo Bills ML",
               "market": "moneyline",
-              "p_true": 0.6524,
+              "p_true": 0.632891,
               "decimal_odds": 1.6666666666666665,
               "american_odds": -150
             }
           ],
-          "p_true": 0.222253682112,
-          "decimal_odds": 5.878274268104776,
-          "american_odds": 488,
-          "implied_prob": 0.17011795543905636,
-          "edge": 0.3064681005505083,
-          "notes": "simulated slate",
-          "source": "demo"
+          "p_true": 0.222849,
+          "decimal_odds": 6.07438,
+          "american_odds": 507,
+          "implied_prob": 0.16462585481975117,
+          "edge": 0.3536695086199999,
+          "notes": "model 22.3% vs market fair 14.5%; legs: Over 45.5 (+14.1%), Under 50 (+12.5%), Buffalo Bills ML (+5.5%)",
+          "source": "finder"
         },
         "stake": {
           "bankroll": 1000.0,
-          "p_true": 0.222253682112,
-          "decimal_odds": 5.878274268104776,
-          "american_odds": 488,
-          "implied_prob": 0.17011795543905636,
-          "edge": 0.3064681005505083,
+          "p_true": 0.222849,
+          "decimal_odds": 6.07438,
+          "american_odds": 507,
+          "implied_prob": 0.16462585481975117,
+          "edge": 0.3536695086199999,
           "mode": "kelly",
-          "raw_fraction": 0.015705764154870492,
-          "capped_fraction": 0.0157,
-          "stake_dollars": 15.7,
-          "potential_profit": 76.58890600924498,
-          "potential_payout": 92.28890600924498,
-          "expected_value": 4.811549178642981,
-          "cap_applied": false,
+          "raw_fraction": 0.017424271961303642,
+          "capped_fraction": 0.01447,
+          "stake_dollars": 14.47,
+          "potential_profit": 73.4262786,
+          "potential_payout": 87.8962786,
+          "expected_value": 5.1175977897313984,
+          "cap_applied": true,
           "skipped": false,
-          "reason": "0.25x Kelly (full Kelly 6.28%)",
-          "ticket_id": "W06-3L-07",
+          "reason": "0.25x Kelly (full Kelly 6.97%); portfolio-scaled x0.831 to respect 15% weekly cap",
+          "ticket_id": "W06-3L-01",
           "error": null
         }
       },
       {
         "rank": 2,
         "ticket": {
-          "ticket_id": "W06-3L-09",
+          "ticket_id": "W06-3L-02",
           "week": 6,
           "n_legs": 3,
           "legs": [
             {
-              "matchup": "Kansas City Chiefs @ Buffalo Bills",
-              "selection": "Kansas City Chiefs +3.5",
-              "market": "spread",
-              "p_true": 0.5379,
+              "matchup": "Los Angeles Chargers @ Tennessee Titans",
+              "selection": "Over 45.5",
+              "market": "total",
+              "p_true": 0.597764,
+              "decimal_odds": 1.9090909090909092,
+              "american_odds": -110
+            },
+            {
+              "matchup": "Los Angeles Rams @ Miami Dolphins",
+              "selection": "Under 50",
+              "market": "total",
+              "p_true": 0.589049,
+              "decimal_odds": 1.9090909090909092,
+              "american_odds": -110
+            },
+            {
+              "matchup": "Minnesota Vikings @ Denver Broncos",
+              "selection": "Under 46",
+              "market": "total",
+              "p_true": 0.574342,
+              "decimal_odds": 1.8695652173913042,
+              "american_odds": -115
+            }
+          ],
+          "p_true": 0.202233,
+          "decimal_odds": 6.81387,
+          "american_odds": 581,
+          "implied_prob": 0.14675947736014924,
+          "edge": 0.3779893717099998,
+          "notes": "model 20.2% vs market fair 12.9%; legs: Over 45.5 (+14.1%), Under 50 (+12.5%), Under 46 (+7.4%)",
+          "source": "finder"
+        },
+        "stake": {
+          "bankroll": 1000.0,
+          "p_true": 0.202233,
+          "decimal_odds": 6.81387,
+          "american_odds": 581,
+          "implied_prob": 0.14675947736014924,
+          "edge": 0.3779893717099998,
+          "mode": "kelly",
+          "raw_fraction": 0.01625377638775892,
+          "capped_fraction": 0.0135,
+          "stake_dollars": 13.5,
+          "potential_profit": 78.487245,
+          "potential_payout": 91.987245,
+          "expected_value": 5.102856518084997,
+          "cap_applied": true,
+          "skipped": false,
+          "reason": "0.25x Kelly (full Kelly 6.50%); portfolio-scaled x0.831 to respect 15% weekly cap",
+          "ticket_id": "W06-3L-02",
+          "error": null
+        }
+      },
+      {
+        "rank": 3,
+        "ticket": {
+          "ticket_id": "W06-3L-03",
+          "week": 6,
+          "n_legs": 3,
+          "legs": [
+            {
+              "matchup": "Los Angeles Chargers @ Tennessee Titans",
+              "selection": "Over 45.5",
+              "market": "total",
+              "p_true": 0.597764,
+              "decimal_odds": 1.9090909090909092,
+              "american_odds": -110
+            },
+            {
+              "matchup": "Los Angeles Rams @ Miami Dolphins",
+              "selection": "Under 50",
+              "market": "total",
+              "p_true": 0.589049,
+              "decimal_odds": 1.9090909090909092,
+              "american_odds": -110
+            },
+            {
+              "matchup": "Las Vegas Raiders @ Dallas Cowboys",
+              "selection": "Over 47",
+              "market": "total",
+              "p_true": 0.562572,
+              "decimal_odds": 1.9090909090909092,
+              "american_odds": -110
+            }
+          ],
+          "p_true": 0.198089,
+          "decimal_odds": 6.957926,
+          "american_odds": 596,
+          "implied_prob": 0.14372098812203524,
+          "edge": 0.37828860341399984,
+          "notes": "model 19.8% vs market fair 12.6%; legs: Over 45.5 (+14.1%), Under 50 (+12.5%), Over 47 (+7.4%)",
+          "source": "finder"
+        },
+        "stake": {
+          "bankroll": 1000.0,
+          "p_true": 0.198089,
+          "decimal_odds": 6.957926,
+          "american_odds": 596,
+          "implied_prob": 0.14372098812203524,
+          "edge": 0.37828860341399984,
+          "mode": "kelly",
+          "raw_fraction": 0.01587333425314446,
+          "capped_fraction": 0.01319,
+          "stake_dollars": 13.19,
+          "potential_profit": 78.58504393999999,
+          "potential_payout": 91.77504393999999,
+          "expected_value": 4.989626679030658,
+          "cap_applied": true,
+          "skipped": false,
+          "reason": "0.25x Kelly (full Kelly 6.35%); portfolio-scaled x0.831 to respect 15% weekly cap",
+          "ticket_id": "W06-3L-03",
+          "error": null
+        }
+      },
+      {
+        "rank": 4,
+        "ticket": {
+          "ticket_id": "W06-3L-04",
+          "week": 6,
+          "n_legs": 3,
+          "legs": [
+            {
+              "matchup": "Minnesota Vikings @ Denver Broncos",
+              "selection": "Under 46",
+              "market": "total",
+              "p_true": 0.574342,
               "decimal_odds": 1.8695652173913042,
               "american_odds": -115
             },
             {
-              "matchup": "Dallas Cowboys @ Philadelphia Eagles",
-              "selection": "Dallas Cowboys ML",
-              "market": "moneyline",
-              "p_true": 0.4297,
-              "decimal_odds": 2.35,
-              "american_odds": 135
+              "matchup": "Las Vegas Raiders @ Dallas Cowboys",
+              "selection": "Over 47",
+              "market": "total",
+              "p_true": 0.562572,
+              "decimal_odds": 1.9090909090909092,
+              "american_odds": -110
             },
             {
-              "matchup": "San Francisco 49ers @ Seattle Seahawks",
-              "selection": "Under 51.5",
-              "market": "total",
-              "p_true": 0.5743,
-              "decimal_odds": 1.925925925925926,
-              "american_odds": -108
+              "matchup": "Arizona Cardinals @ Buffalo Bills",
+              "selection": "Buffalo Bills -2.5",
+              "market": "spread",
+              "p_true": 0.561327,
+              "decimal_odds": 1.9090909090909092,
+              "american_odds": -110
             }
           ],
-          "p_true": 0.13274119230900003,
-          "decimal_odds": 8.461513687600645,
-          "american_odds": 746,
-          "implied_prob": 0.11818216419898754,
-          "edge": 0.1231914156310332,
-          "notes": "simulated slate",
-          "source": "demo"
+          "p_true": 0.181369,
+          "decimal_odds": 6.81387,
+          "american_odds": 581,
+          "implied_prob": 0.14675947736014924,
+          "edge": 0.23582478802999995,
+          "notes": "model 18.1% vs market fair 12.9%; legs: Under 46 (+7.4%), Over 47 (+7.4%), Buffalo Bills -2.5 (+7.2%)",
+          "source": "finder"
         },
         "stake": {
           "bankroll": 1000.0,
-          "p_true": 0.13274119230900003,
-          "decimal_odds": 8.461513687600645,
-          "american_odds": 746,
-          "implied_prob": 0.11818216419898754,
-          "edge": 0.1231914156310332,
+          "p_true": 0.181369,
+          "decimal_odds": 6.81387,
+          "american_odds": 581,
+          "implied_prob": 0.14675947736014924,
+          "edge": 0.23582478802999995,
           "mode": "kelly",
-          "raw_fraction": 0.004127561135341398,
-          "capped_fraction": 0.00412,
-          "stake_dollars": 4.12,
-          "potential_profit": 30.741436392914657,
-          "potential_payout": 34.861436392914655,
-          "expected_value": 0.5075486323998568,
-          "cap_applied": false,
+          "raw_fraction": 0.010140611504471203,
+          "capped_fraction": 0.00842,
+          "stake_dollars": 8.42,
+          "potential_profit": 48.952785399999996,
+          "potential_payout": 57.3727854,
+          "expected_value": 1.9856447152125996,
+          "cap_applied": true,
           "skipped": false,
-          "reason": "0.25x Kelly (full Kelly 1.65%)",
-          "ticket_id": "W06-3L-09",
+          "reason": "0.25x Kelly (full Kelly 4.06%); portfolio-scaled x0.831 to respect 15% weekly cap",
+          "ticket_id": "W06-3L-04",
+          "error": null
+        }
+      },
+      {
+        "rank": 5,
+        "ticket": {
+          "ticket_id": "W06-3L-05",
+          "week": 6,
+          "n_legs": 3,
+          "legs": [
+            {
+              "matchup": "Minnesota Vikings @ Denver Broncos",
+              "selection": "Under 46",
+              "market": "total",
+              "p_true": 0.574342,
+              "decimal_odds": 1.8695652173913042,
+              "american_odds": -115
+            },
+            {
+              "matchup": "Las Vegas Raiders @ Dallas Cowboys",
+              "selection": "Over 47",
+              "market": "total",
+              "p_true": 0.562572,
+              "decimal_odds": 1.9090909090909092,
+              "american_odds": -110
+            },
+            {
+              "matchup": "Arizona Cardinals @ Buffalo Bills",
+              "selection": "Buffalo Bills ML",
+              "market": "moneyline",
+              "p_true": 0.632891,
+              "decimal_odds": 1.6666666666666665,
+              "american_odds": -150
+            }
+          ],
+          "p_true": 0.204492,
+          "decimal_odds": 5.948617,
+          "american_odds": 495,
+          "implied_prob": 0.1681063010108064,
+          "edge": 0.21644458756399998,
+          "notes": "model 20.4% vs market fair 14.7%; legs: Under 46 (+7.4%), Over 47 (+7.4%), Buffalo Bills ML (+5.5%)",
+          "source": "finder"
+        },
+        "stake": {
+          "bankroll": 1000.0,
+          "p_true": 0.204492,
+          "decimal_odds": 5.948617,
+          "american_odds": 495,
+          "implied_prob": 0.1681063010108064,
+          "edge": 0.21644458756399998,
+          "mode": "kelly",
+          "raw_fraction": 0.010934599887402884,
+          "capped_fraction": 0.00908,
+          "stake_dollars": 9.08,
+          "potential_profit": 44.933442359999994,
+          "potential_payout": 54.01344236,
+          "expected_value": 1.9653168550811198,
+          "cap_applied": true,
+          "skipped": false,
+          "reason": "0.25x Kelly (full Kelly 4.37%); portfolio-scaled x0.831 to respect 15% weekly cap",
+          "ticket_id": "W06-3L-05",
           "error": null
         }
       }
     ]
   },
-  "passed": [
-    {
-      "rank": 0,
-      "ticket": {
-        "ticket_id": "W06-2L-04",
-        "week": 6,
-        "n_legs": 2,
-        "legs": [
-          {
-            "matchup": "Green Bay Packers @ Detroit Lions",
-            "selection": "Green Bay Packers +3",
-            "market": "spread",
-            "p_true": 0.4829,
-            "decimal_odds": 1.9523809523809523,
-            "american_odds": -105
-          },
-          {
-            "matchup": "Houston Texans @ Jacksonville Jaguars",
-            "selection": "Houston Texans +4.5",
-            "market": "spread",
-            "p_true": 0.511,
-            "decimal_odds": 1.8928571428571428,
-            "american_odds": -112
-          }
-        ],
-        "p_true": 0.2467619,
-        "decimal_odds": 3.695578231292517,
-        "american_odds": 270,
-        "implied_prob": 0.27059364933271973,
-        "edge": -0.08807209404761907,
-        "notes": "simulated slate",
-        "source": "demo"
-      },
-      "stake": {
-        "bankroll": 1000.0,
-        "p_true": 0.2467619,
-        "decimal_odds": 3.695578231292517,
-        "american_odds": 270,
-        "implied_prob": 0.27059364933271973,
-        "edge": -0.08807209404761907,
-        "mode": "kelly",
-        "raw_fraction": 0.0,
-        "capped_fraction": 0.0,
-        "stake_dollars": 0.0,
-        "potential_profit": 0.0,
-        "potential_payout": 0.0,
-        "expected_value": -0.0,
-        "cap_applied": false,
-        "skipped": true,
-        "reason": "Negative/zero edge (-0.0881); no bet",
-        "ticket_id": "W06-2L-04",
-        "error": null
-      }
-    },
-    {
-      "rank": 0,
-      "ticket": {
-        "ticket_id": "W06-3L-10",
-        "week": 6,
-        "n_legs": 3,
-        "legs": [
-          {
-            "matchup": "Green Bay Packers @ Detroit Lions",
-            "selection": "Over 45.5",
-            "market": "total",
-            "p_true": 0.5115,
-            "decimal_odds": 1.8695652173913042,
-            "american_odds": -115
-          },
-          {
-            "matchup": "Miami Dolphins @ New York Jets",
-            "selection": "Miami Dolphins +6.5",
-            "market": "spread",
-            "p_true": 0.5049,
-            "decimal_odds": 1.925925925925926,
-            "american_odds": -108
-          },
-          {
-            "matchup": "Baltimore Ravens @ Cincinnati Bengals",
-            "selection": "Baltimore Ravens ML",
-            "market": "moneyline",
-            "p_true": 0.4456,
-            "decimal_odds": 2.2,
-            "american_odds": 120
-          }
-        ],
-        "p_true": 0.11507902955999999,
-        "decimal_odds": 7.921417069243157,
-        "american_odds": 692,
-        "implied_prob": 0.1262400390307367,
-        "edge": -0.0884110109314783,
-        "notes": "simulated slate",
-        "source": "demo"
-      },
-      "stake": {
-        "bankroll": 1000.0,
-        "p_true": 0.11507902955999999,
-        "decimal_odds": 7.921417069243157,
-        "american_odds": 692,
-        "implied_prob": 0.1262400390307367,
-        "edge": -0.0884110109314783,
-        "mode": "kelly",
-        "raw_fraction": 0.0,
-        "capped_fraction": 0.0,
-        "stake_dollars": 0.0,
-        "potential_profit": 0.0,
-        "potential_payout": 0.0,
-        "expected_value": -0.0,
-        "cap_applied": false,
-        "skipped": true,
-        "reason": "Negative/zero edge (-0.0884); no bet",
-        "ticket_id": "W06-3L-10",
-        "error": null
-      }
-    },
-    {
-      "rank": 0,
-      "ticket": {
-        "ticket_id": "W06-3L-08",
-        "week": 6,
-        "n_legs": 3,
-        "legs": [
-          {
-            "matchup": "Green Bay Packers @ Detroit Lions",
-            "selection": "Detroit Lions -6.5",
-            "market": "spread",
-            "p_true": 0.5358,
-            "decimal_odds": 1.9523809523809523,
-            "american_odds": -105
-          },
-          {
-            "matchup": "Baltimore Ravens @ Cincinnati Bengals",
-            "selection": "Cincinnati Bengals ML",
-            "market": "moneyline",
-            "p_true": 0.417,
-            "decimal_odds": 2.2,
-            "american_odds": 120
-          },
-          {
-            "matchup": "Miami Dolphins @ New York Jets",
-            "selection": "Miami Dolphins ML",
-            "market": "moneyline",
-            "p_true": 0.3575,
-            "decimal_odds": 2.6,
-            "american_odds": 160
-          }
-        ],
-        "p_true": 0.0798757245,
-        "decimal_odds": 11.167619047619048,
-        "american_odds": 1017,
-        "implied_prob": 0.08954460173972369,
-        "edge": -0.10797833763142861,
-        "notes": "simulated slate",
-        "source": "demo"
-      },
-      "stake": {
-        "bankroll": 1000.0,
-        "p_true": 0.0798757245,
-        "decimal_odds": 11.167619047619048,
-        "american_odds": 1017,
-        "implied_prob": 0.08954460173972369,
-        "edge": -0.10797833763142861,
-        "mode": "kelly",
-        "raw_fraction": 0.0,
-        "capped_fraction": 0.0,
-        "stake_dollars": 0.0,
-        "potential_profit": 0.0,
-        "potential_payout": 0.0,
-        "expected_value": -0.0,
-        "cap_applied": false,
-        "skipped": true,
-        "reason": "Negative/zero edge (-0.1080); no bet",
-        "ticket_id": "W06-3L-08",
-        "error": null
-      }
-    }
-  ],
+  "passed": [],
   "rejected": []
 }

@@ -739,8 +739,13 @@ def stake_tickets(
 
 
 def _rank_key(st: StakedTicket) -> Tuple[float, float, float]:
-    """Sort: biggest edge first, then highest EV, then highest P_true."""
-    return (-st.ticket.edge, -st.stake.expected_value, -st.ticket.p_true)
+    """Sort: highest expected dollar profit of the recommended stake first.
+
+    Under Kelly sizing this is proportional to edge^2 / (D - 1), so a solid
+    edge at a short price outranks a thin-probability long shot with the same
+    raw edge. Ties fall back to raw edge, then to P_true.
+    """
+    return (-st.stake.expected_value, -st.ticket.edge, -st.ticket.p_true)
 
 
 def group_and_rank(
@@ -1152,8 +1157,8 @@ def _selftest() -> int:
     check(report.total_risk <= 1000 * 0.15 + 1e-9, "weekly exposure respects 15% portfolio cap")
     check(all(s.stake.stake_dollars <= 50.0 + 1e-9 for s in report.recommended), "no ticket exceeds 5% cap")
     for group in report.sections.values():
-        edges = [s.ticket.edge for s in group]
-        check(edges == sorted(edges, reverse=True), "section sorted by edge desc")
+        evs = [s.stake.expected_value for s in group]
+        check(evs == sorted(evs, reverse=True), "section sorted by expected value desc")
         check([s.rank for s in group] == list(range(1, len(group) + 1)), "ranks are 1..n")
 
     text = report.text
@@ -1213,10 +1218,17 @@ def _selftest() -> int:
             sys.path.remove(tmp)
             sys.modules.pop("parlay_finder", None)
 
-    # Finder fallback when module missing
-    sys.modules.pop("parlay_finder", None)
-    tickets, rejected, label = collect_parlays(6, source="finder")
-    check(label.startswith("SIMULATED") and len(tickets) == 10, "finder missing -> demo fallback")
+    # Finder fallback when the module cannot be imported (None in sys.modules
+    # makes ``import parlay_finder`` raise ImportError, even if the file exists)
+    saved = sys.modules.pop("parlay_finder", None)
+    sys.modules["parlay_finder"] = None  # type: ignore[assignment]
+    try:
+        tickets, rejected, label = collect_parlays(6, source="finder")
+        check(label.startswith("SIMULATED") and len(tickets) == 10, "finder missing -> demo fallback")
+    finally:
+        sys.modules.pop("parlay_finder", None)
+        if saved is not None:
+            sys.modules["parlay_finder"] = saved
 
     # Week estimator: 2026 Labor Day = Sep 7, kickoff Thu Sep 10
     check(estimate_nfl_week(_dt.date(2026, 9, 10)) == 1, "kickoff Thursday -> week 1")

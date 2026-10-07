@@ -57,6 +57,10 @@ DEFAULTS: Dict[str, Any] = {
     "output": "weekly_parlay_report.txt",
     "json_out": "weekly_parlay_report.json",
     "open_when_done": True,
+    # Sections read directly by parlay_finder.py and backtester.py; accepted
+    # here so they never trigger an "unknown setting" warning.
+    "finder": {},
+    "backtester": {},
 }
 
 

@@ -1,5 +1,5 @@
 {
-  "_comment": "Edit these values, save, then run run_weekly_report.py. Set week to null to auto-detect the upcoming week from today's date.",
+  "_comment": "Edit these values, save, then run run_weekly_report.py (weekly picks) or backtester.py (season simulation). Set week to null to auto-detect the upcoming week from today's date.",
   "week": null,
   "bankroll": 1000.0,
   "mode": "kelly",
@@ -14,5 +14,44 @@
   "top_n": 5,
   "output": "weekly_parlay_report.txt",
   "json_out": "weekly_parlay_report.json",
-  "open_when_done": true
+  "open_when_done": true,
+  "finder": {
+    "_comment": "source: sim (simulated league) | csv (lines_csv file) | api (The Odds API, needs api_key or ODDS_API_KEY)",
+    "source": "sim",
+    "lines_csv": "lines.csv",
+    "model_csv": null,
+    "api_key": null,
+    "bookmaker": null,
+    "season": null,
+    "seed": 7,
+    "top_n": 10,
+    "min_leg_edge": 0.02,
+    "max_candidate_legs": 12,
+    "max_tickets_per_leg": 3,
+    "allow_same_game": false,
+    "sim": {
+      "model_skill": 0.5,
+      "model_noise_margin": 0.75,
+      "model_noise_total": 1.0,
+      "market_noise_margin": 1.0,
+      "market_noise_total": 1.5
+    }
+  },
+  "backtester": {
+    "_comment": "policies: flat:<pct> | flat$:<dollars> | kelly:<multiplier>; with_null adds a no-information control",
+    "seasons": 20,
+    "weeks": 18,
+    "bankroll": 1000.0,
+    "seed": 7,
+    "policies": [
+      "flat:0.01",
+      "flat$:10",
+      "kelly:0.10",
+      "kelly:0.25"
+    ],
+    "portfolio_cap": 0.15,
+    "top_n": 5,
+    "with_null": true,
+    "out_dir": "backtest_output"
+  }
 }

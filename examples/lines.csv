@@ -1,0 +1,31 @@
+week,away,home,market,selection,american_odds,model_prob
+6,Kansas City Chiefs,Buffalo Bills,spread,Buffalo Bills -3.5,-110,0.56
+6,Kansas City Chiefs,Buffalo Bills,spread,Kansas City Chiefs +3.5,-110,0.44
+6,Kansas City Chiefs,Buffalo Bills,total,Over 44.5,-110,0.52
+6,Kansas City Chiefs,Buffalo Bills,total,Under 44.5,-110,0.48
+6,Kansas City Chiefs,Buffalo Bills,moneyline,Buffalo Bills ML,-165,0.63
+6,Kansas City Chiefs,Buffalo Bills,moneyline,Kansas City Chiefs ML,+140,0.37
+6,Dallas Cowboys,Philadelphia Eagles,spread,Philadelphia Eagles -3,-105,0.51
+6,Dallas Cowboys,Philadelphia Eagles,spread,Dallas Cowboys +3,-115,0.49
+6,Dallas Cowboys,Philadelphia Eagles,total,Over 47.5,-110,0.56
+6,Dallas Cowboys,Philadelphia Eagles,total,Under 47.5,-110,0.44
+6,Dallas Cowboys,Philadelphia Eagles,moneyline,Philadelphia Eagles ML,-150,0.60
+6,Dallas Cowboys,Philadelphia Eagles,moneyline,Dallas Cowboys ML,+130,0.40
+6,Green Bay Packers,Detroit Lions,spread,Detroit Lions -2.5,-110,0.55
+6,Green Bay Packers,Detroit Lions,spread,Green Bay Packers +2.5,-110,0.45
+6,Green Bay Packers,Detroit Lions,total,Over 51.5,-108,0.50
+6,Green Bay Packers,Detroit Lions,total,Under 51.5,-112,0.50
+6,Green Bay Packers,Detroit Lions,moneyline,Detroit Lions ML,-135,0.58
+6,Green Bay Packers,Detroit Lions,moneyline,Green Bay Packers ML,+115,0.42
+6,Miami Dolphins,New York Jets,spread,New York Jets -1.5,-110,0.49
+6,Miami Dolphins,New York Jets,spread,Miami Dolphins +1.5,-110,0.51
+6,Miami Dolphins,New York Jets,total,Over 41.5,-110,0.46
+6,Miami Dolphins,New York Jets,total,Under 41.5,-110,0.54
+6,San Francisco 49ers,Seattle Seahawks,spread,San Francisco 49ers -2.5,-112,0.55
+6,San Francisco 49ers,Seattle Seahawks,spread,Seattle Seahawks +2.5,-108,0.45
+6,San Francisco 49ers,Seattle Seahawks,total,Over 45,-110,0.50
+6,San Francisco 49ers,Seattle Seahawks,total,Under 45,-110,0.50
+6,Houston Texans,Jacksonville Jaguars,spread,Houston Texans -6.5,-110,0.53
+6,Houston Texans,Jacksonville Jaguars,spread,Jacksonville Jaguars +6.5,-110,0.47
+6,Houston Texans,Jacksonville Jaguars,total,Over 44.5,-105,0.50
+6,Houston Texans,Jacksonville Jaguars,total,Under 44.5,-115,0.50

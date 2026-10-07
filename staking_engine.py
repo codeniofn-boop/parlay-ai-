@@ -857,21 +857,43 @@ class BankrollTracker:
         return safe_compute_stake(self.bankroll, p_true, decimal_odds, self.config, ticket_id)
 
     def settle(self, rec: StakeRecommendation, won: bool, label: Optional[str] = None) -> float:
-        """Apply the outcome of a ticket to the bankroll and log it.
+        """Apply a plain win/loss outcome to the bankroll and log it.
 
         Returns the realised profit/loss for the ticket (negative on a loss).
+        For pushes or partially voided parlays compute the P&L yourself and
+        use :meth:`record`.
         """
         if rec.stake_dollars <= 0:
-            pnl = 0.0
-        elif won:
-            pnl = rec.potential_profit
-        else:
-            pnl = -rec.stake_dollars
+            return self.record(rec, 0.0, None, label, outcome="skip")
+        if won:
+            return self.record(rec, rec.potential_profit, True, label, outcome="win")
+        return self.record(rec, -rec.stake_dollars, False, label, outcome="loss")
+
+    def record(
+        self,
+        rec: StakeRecommendation,
+        pnl: float,
+        won: Optional[bool],
+        label: Optional[str] = None,
+        outcome: Optional[str] = None,
+    ) -> float:
+        """Apply an arbitrary realised P&L (win, loss, push, voided legs) and log it.
+
+        ``won`` is True/False for decided tickets and None for pushes/skips.
+        Returns ``pnl`` unchanged for convenience.
+        """
+        pnl = float(pnl)
+        if math.isnan(pnl) or math.isinf(pnl):
+            raise StakingInputError("pnl must be finite")
+        if pnl < -rec.stake_dollars - 1e-9:
+            raise StakingInputError(f"pnl {pnl:.2f} cannot lose more than the stake {rec.stake_dollars:.2f}")
         self.bankroll = max(0.0, self.bankroll + pnl)
         self.peak_bankroll = max(self.peak_bankroll, self.bankroll)
         if self.peak_bankroll > 0:
             dd = (self.peak_bankroll - self.bankroll) / self.peak_bankroll
             self.max_drawdown = max(self.max_drawdown, dd)
+        if outcome is None:
+            outcome = "skip" if rec.stake_dollars <= 0 else ("win" if won else "loss" if won is False else "push")
         self.history.append(
             {
                 "ticket_id": rec.ticket_id,
@@ -881,7 +903,8 @@ class BankrollTracker:
                 "decimal_odds": rec.decimal_odds,
                 "p_true": rec.p_true,
                 "edge": rec.edge,
-                "won": bool(won) if rec.stake_dollars > 0 else None,
+                "won": won if rec.stake_dollars > 0 else None,
+                "outcome": outcome,
                 "pnl": pnl,
                 "bankroll_after": self.bankroll,
             }
@@ -891,7 +914,9 @@ class BankrollTracker:
     def summary(self) -> Dict[str, Any]:
         """Headline performance numbers for the simulation."""
         bets = [h for h in self.history if h["stake"] > 0]
-        wins = sum(1 for h in bets if h["won"])
+        wins = sum(1 for h in bets if h["won"] is True)
+        pushes = sum(1 for h in bets if h["won"] is None)
+        decided = len(bets) - pushes
         total_staked = sum(h["stake"] for h in bets)
         total_pnl = sum(h["pnl"] for h in bets)
         return {
@@ -903,7 +928,8 @@ class BankrollTracker:
             if self.starting_bankroll > 0 else 0.0,
             "tickets_placed": len(bets),
             "tickets_skipped": len(self.history) - len(bets),
-            "win_rate": (wins / len(bets)) if bets else 0.0,
+            "pushes": pushes,
+            "win_rate": (wins / decided) if decided else 0.0,
             "total_staked": total_staked,
             "peak_bankroll": self.peak_bankroll,
             "max_drawdown": self.max_drawdown,
@@ -1041,6 +1067,19 @@ def _selftest() -> int:
     check(abs(tr.bankroll - (1000 + 12.15 * 2.64 - r2.stake_dollars)) < 1e-6, "tracker debits stake on loss")
     s = tr.summary()
     check(s["tickets_placed"] == 2 and abs(s["win_rate"] - 0.5) < 1e-12, "tracker summary counts 2 bets, 50% win rate")
+    r3 = tr.stake(0.31, 3.64, "W3")
+    before = tr.bankroll
+    tr.record(r3, 0.0, None, outcome="push")
+    check(tr.bankroll == before and tr.summary()["pushes"] == 1 and abs(tr.summary()["win_rate"] - 0.5) < 1e-12,
+          "record() push leaves bankroll unchanged and is excluded from win rate")
+    r4 = tr.stake(0.31, 3.64, "W4")
+    tr.record(r4, r4.stake_dollars * 0.9, True, outcome="win")
+    check(abs(tr.bankroll - (before + r4.stake_dollars * 0.9)) < 1e-9, "record() applies a reduced (voided-leg) payout")
+    try:
+        tr.record(r4, -r4.stake_dollars * 2, False)
+        check(False, "record() rejects losing more than the stake")
+    except StakingInputError:
+        check(True, "record() rejects losing more than the stake")
 
     # Serialisation round-trip
     cfg_rt = StakingConfig.from_dict(json.loads(json.dumps(cfg_k.to_dict())))
