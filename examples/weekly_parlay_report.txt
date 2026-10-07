@@ -3,11 +3,11 @@
                       Simulated NFL Week 6  |  2026 Season
                           Wednesday, October 07, 2026
 ================================================================================
-  Generated        : 2026-10-07 23:06:03
+  Generated        : 2026-10-07 23:21:48
   Bankroll         : $1,000.00
   Staking Mode     : Fractional Kelly Criterion  [Mode B]  -  0.25x Kelly
   Safety Caps      : max 5% per ticket, max 15% total weekly exposure
-  Pick Source      : parlay_finder.py
+  Pick Source      : parlay_finder.py (simulated league, NOT real games)
   Slate            : 10 candidates  ->  10 recommended, 0 passed, 0 rejected
 --------------------------------------------------------------------------------
 

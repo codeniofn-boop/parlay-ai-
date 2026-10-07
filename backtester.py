@@ -807,6 +807,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return _selftest()
 
     section = load_backtest_section()
+    # Drop-in real data: lines.csv + results.csv beside this script switch to real-season mode.
+    auto_lines, auto_results = pf.resolve_data_path("lines.csv"), pf.resolve_data_path("results.csv")
+    if not (args.lines or args.results or section.get("lines_csv") or section.get("results_csv")):
+        if os.path.isfile(auto_lines) and os.path.isfile(auto_results):
+            print(f"Found {os.path.basename(auto_lines)} and {os.path.basename(auto_results)}; backtesting real data.")
+            args.lines, args.results = auto_lines, auto_results
+        elif os.path.isfile(auto_lines) or os.path.isfile(auto_results):
+            print("Note: real-data mode needs BOTH lines.csv and results.csv; running the simulated league.")
     try:
         policies: Dict[str, StakingConfig] = {}
         specs = args.policy or section.get("policies") or list(DEFAULT_POLICIES)
@@ -829,8 +837,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             results_csv=args.results or section.get("results_csv"),
             out_dir=str(args.out_dir or section.get("out_dir", DEFAULT_OUT_DIR)),
         )
-        print(f"Backtesting {cfg.seasons} season(s) x {cfg.weeks} weeks, {len(cfg.policies)} policies"
-              f"{' + null control' if cfg.with_null and not cfg.no_edge else ''}...")
+        if cfg.lines_csv:
+            print(f"Backtesting the real season in {os.path.basename(cfg.lines_csv)} + "
+                  f"{os.path.basename(cfg.results_csv or '')} with {len(cfg.policies)} policies...")
+        else:
+            print(f"Backtesting {cfg.seasons} season(s) x {cfg.weeks} weeks, {len(cfg.policies)} policies"
+                  f"{' + null control' if cfg.with_null and not cfg.no_edge else ''}...")
         results = run_backtest(cfg)
         paths = write_outputs(results, cfg.out_dir)
     except (BacktestError, pf.FinderError, StakingInputError) as exc:

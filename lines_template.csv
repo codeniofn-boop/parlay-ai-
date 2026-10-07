@@ -1,0 +1,7 @@
+week,away,home,market,selection,american_odds,model_prob
+5,Kansas City Chiefs,Buffalo Bills,spread,Buffalo Bills -3.5,-110,0.56
+5,Kansas City Chiefs,Buffalo Bills,spread,Kansas City Chiefs +3.5,-110,0.44
+5,Kansas City Chiefs,Buffalo Bills,total,Over 44.5,-110,0.52
+5,Kansas City Chiefs,Buffalo Bills,total,Under 44.5,-110,0.48
+5,Kansas City Chiefs,Buffalo Bills,moneyline,Buffalo Bills ML,-165,0.63
+5,Kansas City Chiefs,Buffalo Bills,moneyline,Kansas City Chiefs ML,+140,0.37

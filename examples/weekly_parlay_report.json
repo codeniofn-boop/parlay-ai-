@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-07T23:06:03",
+  "generated_at": "2026-10-07T23:21:48",
   "config": {
     "week": 6,
     "season": 2026,
@@ -23,7 +23,7 @@
       3
     ],
     "portfolio_cap_pct": 0.15,
-    "source_label": "parlay_finder.py"
+    "source_label": "parlay_finder.py (simulated league, NOT real games)"
   },
   "summary": {
     "tickets_collected": 10,

@@ -583,6 +583,23 @@ def load_parlays_from_finder(
     return tickets
 
 
+def _finder_data_suffix(raw_tickets: Sequence[Any]) -> str:
+    """Describe the finder's data source from the tickets' ``source`` field."""
+    sources = set()
+    for t in raw_tickets:
+        try:
+            sources.add(str(_as_dict(t).get("source", "")).lower())
+        except ReporterError:
+            continue
+    if sources and all(s == "sim" for s in sources):
+        return " (simulated league, NOT real games)"
+    if sources and all(s == "csv" for s in sources):
+        return " (real lines from lines.csv)"
+    if sources and all(s.startswith("api") for s in sources):
+        return " (live lines via The Odds API)"
+    return ""
+
+
 def load_parlays_from_json(path: str) -> List[Any]:
     """Load raw tickets from a JSON file written by parlay_finder or by hand."""
     if not os.path.isfile(path):
@@ -690,7 +707,7 @@ def collect_parlays(
     if source == "finder":
         try:
             raw = load_parlays_from_finder(week, bankroll=bankroll, top_n=top_n, function_name=finder_function)
-            label = "parlay_finder.py"
+            label = "parlay_finder.py" + _finder_data_suffix(raw)
         except ReporterError as exc:
             logger.warning("parlay_finder unavailable (%s); falling back", exc)
             source = "json" if input_path else "demo"

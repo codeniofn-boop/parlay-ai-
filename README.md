@@ -32,7 +32,10 @@ parlay_finder.py ──► weekly_reporter.py ──► staking_engine.py ──
    It writes `backtest_output/backtest_summary.txt` and opens it.
 
 The report's **Pick Source** line says where the picks came from. Out of the box it is the simulated
-league inside `parlay_finder.py`; see **Using real lines** to switch.
+league inside `parlay_finder.py`, clearly labelled "NOT real games". To use real games, drop a
+`lines.csv` into the folder; see **Using real lines**. For live lines without typing, sign up for a
+free key at https://the-odds-api.com, paste it as `"api_key"` under `finder` in
+`pipeline_config.json`, and set `"source": "api"`.
 
 ## Quick start with Terminal
 
@@ -82,7 +85,14 @@ tickets = parlay_finder.find_parlays(week=6)            # list[dict], reporter-r
 parlay_finder.write_parlays_json(tickets, "parlays_week_06.json", 6)
 ```
 
-### Using real lines
+### Using real lines (drop-in, no settings edits)
+
+Put a file named **`lines.csv`** in the main folder and the finder uses it automatically for any
+week it contains; weeks it does not contain fall back to the simulated league, and the report's
+**Pick Source** line always says which happened. Add **`results.csv`** (final scores) next to it and
+`backtester.py` automatically replays that real season instead of the simulation. A **`model_probs.csv`**
+in the folder is merged automatically too. Copy `lines_template.csv` and `results_template.csv` to
+start, or look at the fuller examples in `examples/`.
 
 `lines.csv` (see `examples/lines.csv`):
 

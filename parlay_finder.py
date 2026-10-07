@@ -102,6 +102,8 @@ __all__ = [
     "rank_score",
     "find_parlays",
     "load_finder_config",
+    "resolve_data_path",
+    "lines_file_has_week",
     "write_parlays_json",
 ]
 
@@ -735,6 +737,7 @@ class FinderConfig:
     markets: Tuple[str, ...] = ("spread", "total", "moneyline")
     max_leg_odds: int = 300             # skip legs priced longer than +300 (longshot over-confidence)
     rank_by: str = "growth"             # growth (edge^2 / (D-1), Kelly log-growth proxy) | edge
+    auto_detect_lines: bool = True      # source "sim" switches to "csv" when lines_csv exists for the week
 
     def __post_init__(self) -> None:
         self.source = (self.source or "sim").lower()
@@ -765,6 +768,33 @@ class FinderConfig:
 def nfl_season_year(date: Optional[_dt.date] = None) -> int:
     date = date or _dt.date.today()
     return date.year if date.month >= 3 else date.year - 1
+
+
+def resolve_data_path(path: str) -> str:
+    """Find a data file in the working directory or next to this module."""
+    if os.path.isabs(path) or os.path.isfile(path):
+        return path
+    beside = os.path.join(os.path.dirname(os.path.abspath(__file__)), path)
+    return beside if os.path.isfile(beside) else path
+
+
+def lines_file_has_week(path: str, week: int) -> bool:
+    """True when ``path`` exists and contains at least one row for ``week``."""
+    try:
+        with open(path, newline="", encoding="utf-8-sig") as fh:
+            reader = csv.DictReader(fh)
+            if not reader.fieldnames or "week" not in {f.strip().lower() for f in reader.fieldnames}:
+                return False
+            for raw in reader:
+                r = {(k or "").strip().lower(): (v or "").strip() for k, v in raw.items()}
+                try:
+                    if int(float(r.get("week", ""))) == week:
+                        return True
+                except ValueError:
+                    continue
+    except OSError:
+        return False
+    return False
 
 
 def load_finder_config(path: str = CONFIG_FILENAME) -> FinderConfig:
@@ -896,17 +926,28 @@ def collect_sides(week: int, cfg: FinderConfig, games: Optional[Sequence[Simulat
     """Gather every market side for the week from the configured source."""
     if games is not None:
         return sides_from_games(games, "sim")
-    if cfg.source == "sim":
+    source = cfg.source
+    lines_path = resolve_data_path(cfg.lines_csv)
+    if source == "sim" and cfg.auto_detect_lines and os.path.isfile(lines_path):
+        if lines_file_has_week(lines_path, week):
+            logger.info("Found %s with week %d rows; using real lines instead of the simulated league", lines_path, week)
+            source = "csv"
+        else:
+            logger.warning("%s exists but has no rows for week %d; using the simulated league", lines_path, week)
+    if source == "sim":
         season = cfg.season or nfl_season_year()
         return sides_from_games(simulate_week_games(season, week, cfg.seed, cfg.sim), "sim")
-    if cfg.source == "csv":
-        sides = load_lines_csv(cfg.lines_csv, week=week)
+    if source == "csv":
+        sides = load_lines_csv(lines_path, week=week)
     else:  # api
         api_key = cfg.api_key or os.environ.get("ODDS_API_KEY", "")
         sides = fetch_lines_from_odds_api(week, api_key, cfg.bookmaker)
-    if cfg.model_csv:
-        applied = apply_model_probs(sides, load_model_probs_csv(cfg.model_csv))
-        logger.info("Applied %d model probabilities from %s", applied, cfg.model_csv)
+    model_path = resolve_data_path(cfg.model_csv) if cfg.model_csv else None
+    if model_path is None and os.path.isfile(resolve_data_path("model_probs.csv")):
+        model_path = resolve_data_path("model_probs.csv")  # drop-in companion file
+    if model_path:
+        applied = apply_model_probs(sides, load_model_probs_csv(model_path))
+        logger.info("Applied %d model probabilities from %s", applied, model_path)
     return sides
 
 
@@ -1098,6 +1139,18 @@ def _selftest() -> int:
         out = write_parlays_json(tickets, os.path.join(tmp, "p.json"), 6)
         with open(out, encoding="utf-8") as fh:
             check(len(json.load(fh)["parlays"]) == len(tickets), "write_parlays_json round trip")
+        # Drop-in auto-detection: a lines.csv in the working directory switches "sim" to "csv"
+        cwd = os.getcwd()
+        os.chdir(tmp)
+        try:
+            auto = find_parlays(6, config=FinderConfig(source="sim", seed=7, season=2026, lines_csv=path))
+            check(auto and all(t["source"] == "csv" for t in auto), "lines.csv auto-detected for week 6")
+            sim_again = find_parlays(8, config=FinderConfig(source="sim", seed=7, season=2026, lines_csv=path))
+            check(sim_again and all(t["source"] == "sim" for t in sim_again), "no week-8 rows -> simulated league")
+            off = find_parlays(6, config=FinderConfig(source="sim", seed=7, season=2026, lines_csv=path, auto_detect_lines=False))
+            check(all(t["source"] == "sim" for t in off), "auto_detect_lines=False keeps the simulation")
+        finally:
+            os.chdir(cwd)
         # finder config from pipeline_config.json
         cfgp = os.path.join(tmp, "pipeline_config.json")
         with open(cfgp, "w", encoding="utf-8") as fh:
