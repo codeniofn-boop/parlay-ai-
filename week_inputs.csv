@@ -1,0 +1,16 @@
+week,date,away,home,home_spread,home_spread_price,away_spread_price,total,over_price,under_price,away_ml,home_ml,model_home_margin,model_home_win_prob,model_total,source
+5,2026-10-08,Tampa Bay Buccaneers,Dallas Cowboys,-8.5,-110,-110,47.5,-110,-110,+360,-470,11.4,87,,VegasInsider consensus 2026-10-07 (DK showed -10/-625 earlier in week); model ESPN FPI
+5,2026-10-11,Philadelphia Eagles,Jacksonville Jaguars,-7,-110,-110,42.5,-110,-110,+280,-355,6.5,73,,VegasInsider consensus 2026-10-07 (London game); model ESPN FPI
+5,2026-10-11,Minnesota Vikings,New Orleans Saints,+1.5,-108,-112,42.5,-110,-110,-125,+105,-0.8,46,,DraftKings via VegasInsider 2026-10-07; model ESPN FPI
+5,2026-10-11,Chicago Bears,Green Bay Packers,+2.5,-110,-110,45.5,-110,-110,-148,+124,-2.1,42,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,2026-10-11,Cincinnati Bengals,Miami Dolphins,+6.5,-110,-110,42.5,-110,-110,-340,+270,-9.1,19,,VegasInsider consensus 2026-10-07 (some books -7.5); model ESPN FPI
+5,2026-10-11,Cleveland Browns,New York Jets,-1.5,-110,-110,39.5,-110,-110,+105,-125,1.5,56,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,2026-10-11,Indianapolis Colts,Pittsburgh Steelers,-2.5,-110,-110,44.5,-110,-110,+124,-148,-0.2,49,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,2026-10-11,Las Vegas Raiders,New England Patriots,-3.5,-110,-110,45.5,-110,-110,+164,-198,3.6,64,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,2026-10-11,New York Giants,Washington Commanders,-3.5,-110,-110,43.5,-110,-110,+150,-180,3.4,63,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,2026-10-11,Houston Texans,Tennessee Titans,+7.5,-110,-110,37.5,-110,-110,-360,+285,-4.3,34,,VegasInsider consensus 2026-10-07 (some books -6.5 / 39.5); model ESPN FPI
+5,2026-10-11,Denver Broncos,Los Angeles Chargers,+3.5,-110,-110,42.5,-110,-110,-185,+154,0.1,51,,DraftKings spread via VegasInsider 2026-10-07; Denver injuries (Surtain, Moss, Bryant) reported; model ESPN FPI
+5,2026-10-11,San Francisco 49ers,Seattle Seahawks,-2.5,-110,-110,45.5,-110,-110,+130,-155,-1.4,44,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,2026-10-11,Detroit Lions,Arizona Cardinals,+5.5,-110,-110,54.5,-110,-110,-250,+205,-5.2,31,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,2026-10-11,Baltimore Ravens,Atlanta Falcons,-3.5,-105,-115,43.5,-110,-110,+150,-180,,,,DraftKings via VegasInsider 2026-10-07; NO MODEL: FPI projection (Ravens by 2.4) predates Lamar Jackson injury news and the 9-point line move
+5,2026-10-12,Buffalo Bills,Los Angeles Rams,-3,-110,-110,54.5,-110,-110,+136,-162,2.4,60,,VegasInsider consensus 2026-10-07; model ESPN FPI

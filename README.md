@@ -11,6 +11,7 @@ backtesting +EV NFL parlays. Every module ships with a built-in self-test.
 | `backtester.py` | Replays whole seasons through the same code path and compares staking policies. |
 | `run_weekly_report.py` | Zero-argument launcher for the weekly report (press Run, no Terminal). |
 | `pipeline_config.json` | The one settings file: bankroll, staking mode, finder and backtester options. |
+| `week_inputs.csv` + `build_lines.py` | This week's games, odds and model numbers (15 rows) and the expander that turns them into `lines.csv`. |
 
 ```
 parlay_finder.py ──► weekly_reporter.py ──► staking_engine.py ──► weekly_parlay_report.txt
@@ -84,6 +85,24 @@ import parlay_finder
 tickets = parlay_finder.find_parlays(week=6)            # list[dict], reporter-ready
 parlay_finder.write_parlays_json(tickets, "parlays_week_06.json", 6)
 ```
+
+### This week's real lines are included
+
+`week_inputs.csv` holds the current NFL week, one row per game: the spread, total and moneylines, plus
+the model's projected margin and win probability. The pipeline expands it into `lines.csv`
+automatically (six rows per game) every time it runs, so `week_inputs.csv` is the only file to
+maintain. Each row's `source` column records where its numbers came from and when.
+
+**Provenance of the shipped Week 5 file (2026-10-07):** lines are the VegasInsider consensus board,
+with DraftKings prices where a search surfaced them; spread and total prices not shown by the source
+are assumed to be -110. Model numbers are ESPN's public Football Power Index (FPI) projected margin
+and win probability for each game. Spread probabilities are derived from the FPI margin with a 13.5
+point standard deviation; totals carry no model number and so get no edge. One game (Ravens at
+Falcons) has no model numbers because the FPI projection predates the Lamar Jackson injury news
+that moved the line nine points. Lines move until kickoff: confirm at your sportsbook.
+
+**To update for a new week:** open `week_inputs.csv` in Numbers or Excel, replace the 15 rows, save
+as CSV, and run the report. `python3 build_lines.py --selftest` checks the expander.
 
 ### Using real lines (drop-in, no settings edits)
 

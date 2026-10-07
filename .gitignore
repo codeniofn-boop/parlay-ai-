@@ -15,7 +15,6 @@ venv/
 /weekly_parlay_report.json
 /reports/
 /backtest_output/
-/lines.csv
 /results.csv
 /model_probs.csv
 /parlays_week_*.json

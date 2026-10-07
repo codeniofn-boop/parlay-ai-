@@ -732,7 +732,8 @@ class FinderConfig:
     top_n: int = 10                     # tickets returned per leg size
     min_leg_edge: float = 0.02          # legs must beat this model edge (2% default)
     max_candidate_legs: int = 12        # cap on legs entering the combinatorics
-    max_tickets_per_leg: int = 3        # diversification
+    max_tickets_per_leg: int = 3        # diversification: a leg may appear on at most this many tickets in total
+    max_tickets_per_game: int = 4       # diversification: any single game may affect at most this many tickets
     allow_same_game: bool = False       # correlated legs excluded by default
     markets: Tuple[str, ...] = ("spread", "total", "moneyline")
     max_leg_odds: int = 300             # skip legs priced longer than +300 (longshot over-confidence)
@@ -886,6 +887,8 @@ def build_parlays(sides: Sequence[MarketSide], week: int, cfg: Optional[FinderCo
         return []
 
     tickets: List[Dict[str, Any]] = []
+    usage: Dict[Tuple[Any, ...], int] = {}       # leg -> tickets using it, across ALL sizes
+    game_usage: Dict[Tuple[Any, ...], int] = {}  # game -> tickets depending on it, across ALL sizes
     for size in cfg.leg_sizes:
         combos: List[Tuple[float, Tuple[MarketSide, ...]]] = []
         for combo in itertools.combinations(candidates, size):
@@ -902,14 +905,18 @@ def build_parlays(sides: Sequence[MarketSide], week: int, cfg: Optional[FinderCo
             combos.append((rank_score(p, d, cfg.rank_by), combo))
         combos.sort(key=lambda item: (-item[0], -math.prod(leg.model_prob for leg in item[1])))
 
-        usage: Dict[Tuple[Any, ...], int] = {}
         kept = 0
         for edge, combo in combos:
             keys = [(leg.game_key, leg.selection) for leg in combo]
+            games = {leg.game_key for leg in combo}
             if any(usage.get(k, 0) >= cfg.max_tickets_per_leg for k in keys):
+                continue
+            if any(game_usage.get(g, 0) >= cfg.max_tickets_per_game for g in games):
                 continue
             for k in keys:
                 usage[k] = usage.get(k, 0) + 1
+            for g in games:
+                game_usage[g] = game_usage.get(g, 0) + 1
             kept += 1
             tickets.append(_ticket_from_legs(combo, week, f"W{week:02d}-{size}L-{kept:02d}", source, cfg.rank_by))
             if kept >= cfg.top_n:
@@ -928,6 +935,21 @@ def collect_sides(week: int, cfg: FinderConfig, games: Optional[Sequence[Simulat
         return sides_from_games(games, "sim")
     source = cfg.source
     lines_path = resolve_data_path(cfg.lines_csv)
+    # week_inputs.csv (one row per game) is the source of truth when present:
+    # regenerate the DEFAULT lines.csv beside it so hand edits never drift out
+    # of sync. A lines_csv that points somewhere specific is never touched.
+    uses_default_lines = os.path.basename(cfg.lines_csv) == cfg.lines_csv == "lines.csv"
+    inputs_path = resolve_data_path("week_inputs.csv")
+    if cfg.auto_detect_lines and uses_default_lines and os.path.isfile(inputs_path):
+        try:
+            from build_lines import BuildLinesError, build_lines_csv  # local import: optional helper module
+            target = os.path.join(os.path.dirname(os.path.abspath(inputs_path)), "lines.csv")
+            lines_path = build_lines_csv(inputs_path, target)
+            logger.info("Rebuilt %s from %s", lines_path, inputs_path)
+        except ImportError:
+            logger.warning("week_inputs.csv found but build_lines.py is missing; using lines.csv as-is")
+        except BuildLinesError as exc:
+            logger.warning("week_inputs.csv could not be expanded (%s); using lines.csv as-is", exc)
     if source == "sim" and cfg.auto_detect_lines and os.path.isfile(lines_path):
         if lines_file_has_week(lines_path, week):
             logger.info("Found %s with week %d rows; using real lines instead of the simulated league", lines_path, week)
@@ -1062,10 +1084,15 @@ def _selftest() -> int:
     e = [t["edge"] for t in by_edge if t["n_legs"] == 2]
     check(e == sorted(e, reverse=True), "rank_by=edge orders by raw edge")
     usage: Dict[Tuple[str, str], int] = {}
-    for t in [t for t in tickets if t["n_legs"] == 2]:
+    for t in tickets:
         for l in t["legs"]:
             usage[(l["matchup"], l["selection"])] = usage.get((l["matchup"], l["selection"]), 0) + 1
-    check(max(usage.values()) <= cfg.max_tickets_per_leg, "diversification cap respected")
+    check(max(usage.values()) <= cfg.max_tickets_per_leg, "diversification cap respected across all ticket sizes")
+    game_use: Dict[str, int] = {}
+    for t in tickets:
+        for g in {l["matchup"] for l in t["legs"]}:
+            game_use[g] = game_use.get(g, 0) + 1
+    check(max(game_use.values()) <= cfg.max_tickets_per_game, "per-game exposure cap respected")
     t0 = tickets[0]
     prod_p = math.prod(l["p_true"] for l in t0["legs"])
     prod_d = math.prod(american_to_decimal(l["american_odds"]) for l in t0["legs"])
@@ -1149,6 +1176,22 @@ def _selftest() -> int:
             check(sim_again and all(t["source"] == "sim" for t in sim_again), "no week-8 rows -> simulated league")
             off = find_parlays(6, config=FinderConfig(source="sim", seed=7, season=2026, lines_csv=path, auto_detect_lines=False))
             check(all(t["source"] == "sim" for t in off), "auto_detect_lines=False keeps the simulation")
+        finally:
+            os.chdir(cwd)
+        # week_inputs.csv in the working directory regenerates lines.csv and is picked up
+        os.chdir(tmp)
+        try:
+            with open("week_inputs.csv", "w", newline="", encoding="utf-8") as fh:
+                w = csv.writer(fh)
+                w.writerow(["week", "away", "home", "home_spread", "total", "away_ml", "home_ml", "model_home_margin", "model_home_win_prob"])
+                w.writerow([9, "Tampa Bay Buccaneers", "Dallas Cowboys", -8.5, 47.5, "+360", -470, 11.4, 87])
+                w.writerow([9, "Cincinnati Bengals", "Miami Dolphins", 6.5, 42.5, -340, "+270", -9.1, 19])
+                w.writerow([9, "Buffalo Bills", "Los Angeles Rams", -3, 54.5, "+136", -162, 2.4, 60])
+            from_inputs = find_parlays(9, config=FinderConfig(source="sim", seed=7, season=2026, lines_csv="lines.csv"))
+            check(os.path.isfile("lines.csv") and from_inputs and all(t["source"] == "csv" for t in from_inputs),
+                  "week_inputs.csv -> lines.csv -> real-line tickets")
+            check(any("Dallas Cowboys -8.5" in l["selection"] for t in from_inputs for l in t["legs"]),
+                  "FPI-derived spread leg appears in tickets")
         finally:
             os.chdir(cwd)
         # finder config from pipeline_config.json

@@ -1,151 +1,138 @@
 ================================================================================
                          NFL PARLAY WEEKLY REPORT CARD
-                      Simulated NFL Week 6  |  2026 Season
+                      Simulated NFL Week 5  |  2026 Season
                           Wednesday, October 07, 2026
 ================================================================================
-  Generated        : 2026-10-07 23:21:48
+  Generated        : 2026-10-07 23:34:17
   Bankroll         : $1,000.00
   Staking Mode     : Fractional Kelly Criterion  [Mode B]  -  0.25x Kelly
   Safety Caps      : max 5% per ticket, max 15% total weekly exposure
-  Pick Source      : parlay_finder.py (simulated league, NOT real games)
-  Slate            : 10 candidates  ->  10 recommended, 0 passed, 0 rejected
+  Pick Source      : parlay_finder.py (real lines from lines.csv)
+  Slate            : 9 candidates  ->  9 recommended, 0 passed, 0 rejected
 --------------------------------------------------------------------------------
 
 TOP RECOMMENDED PARLAYS  -  2-LEG COMBINATIONS
 ================================================================================
-  #1  Ticket W06-2L-01                                            RISK: $22.25
+  #1  Ticket W05-2L-01                                            RISK: $19.55
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    Leg 1 Los Angeles Chargers @ Tennessee Ti... Over 45.5                (-110)
-    Leg 2 Los Angeles Rams @ Miami Dolphins      Under 50                 (-110)
+    Leg 1 San Francisco 49ers @ Seattle Seahawks San Francisco 49ers ML   (+130)
+    Leg 2 Denver Broncos @ Los Angeles Chargers  Los Angeles Chargers ML  (+154)
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    True Win Rate  :   35.21%    Book Implied   :   27.44%
-    Payout Odds    :     +264    Edge           :  +28.33%
-    To Win         :   $58.84    Expected Value :   +$6.30
-    Stake Basis    :    2.23% of bankroll  [CAPPED]
-    Notes: model 35.2% vs market fair 25.3%; legs: Over 45.5 (+14.1%), Under 50
-    (+12.5%)
+    True Win Rate  :   28.56%    Book Implied   :   17.12%
+    Payout Odds    :     +484    Edge           :  +66.85%
+    To Win         :   $94.66    Expected Value :  +$13.07
+    Stake Basis    :    1.96% of bankroll  [CAPPED]
+    Notes: model 28.6% vs market fair 15.7%; legs: San Francisco 49ers ML
+    (+28.8%), Los Angeles Chargers ML (+29.5%)
 
-  #2  Ticket W06-2L-02                                            RISK: $18.22
+  #2  Ticket W05-2L-02                                            RISK: $28.32
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    Leg 1 Los Angeles Chargers @ Tennessee Ti... Over 45.5                (-110)
-    Leg 2 Minnesota Vikings @ Denver Broncos     Under 46                 (-115)
+    Leg 1 San Francisco 49ers @ Seattle Seahawks San Francisco 49ers ML   (+130)
+    Leg 2 Tampa Bay Buccaneers @ Dallas Cowboys  Dallas Cowboys ML        (-470)
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    True Win Rate  :   34.33%    Book Implied   :   28.02%
-    Payout Odds    :     +257    Edge           :  +22.54%
-    To Win         :   $46.81    Expected Value :   +$4.11
-    Stake Basis    :    1.82% of bankroll  [CAPPED]
-    Notes: model 34.3% vs market fair 25.8%; legs: Over 45.5 (+14.1%), Under 46
-    (+7.4%)
+    True Win Rate  :   48.72%    Book Implied   :   35.85%
+    Payout Odds    :     +179    Edge           :  +35.90%
+    To Win         :   $50.67    Expected Value :  +$10.17
+    Stake Basis    :    2.83% of bankroll  [CAPPED]
+    Notes: model 48.7% vs market fair 33.0%; legs: San Francisco 49ers ML
+    (+28.8%), Dallas Cowboys ML (+5.5%)
 
-  #3  Ticket W06-2L-03                                            RISK: $17.72
+  #3  Ticket W05-2L-03                                            RISK: $20.37
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    Leg 1 Los Angeles Chargers @ Tennessee Ti... Over 45.5                (-110)
-    Leg 2 Las Vegas Raiders @ Dallas Cowboys     Over 47                  (-110)
+    Leg 1 San Francisco 49ers @ Seattle Seahawks San Francisco 49ers ML   (+130)
+    Leg 2 Denver Broncos @ Los Angeles Chargers  Los Angeles Chargers ... (-110)
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    True Win Rate  :   33.63%    Book Implied   :   27.44%
-    Payout Odds    :     +264    Edge           :  +22.56%
-    To Win         :   $46.86    Expected Value :   +$4.00
-    Stake Basis    :    1.77% of bankroll  [CAPPED]
-    Notes: model 33.6% vs market fair 25.3%; legs: Over 45.5 (+14.1%), Over 47
-    (+7.4%)
+    True Win Rate  :   33.89%    Book Implied   :   22.77%
+    Payout Odds    :     +339    Edge           :  +48.79%
+    To Win         :   $69.07    Expected Value :   +$9.94
+    Stake Basis    :    2.04% of bankroll  [CAPPED]
+    Notes: model 33.9% vs market fair 20.9%; legs: San Francisco 49ers ML
+    (+28.8%), Los Angeles Chargers +3.5 (+15.5%)
 
-  #4  Ticket W06-2L-04                                            RISK: $16.78
+  #4  Ticket W05-2L-04                                            RISK: $19.04
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    Leg 1 Los Angeles Rams @ Miami Dolphins      Under 50                 (-110)
-    Leg 2 Minnesota Vikings @ Denver Broncos     Under 46                 (-115)
+    Leg 1 Denver Broncos @ Los Angeles Chargers  Los Angeles Chargers ML  (+154)
+    Leg 2 San Francisco 49ers @ Seattle Seahawks San Francisco 49ers +2.5 (-110)
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    True Win Rate  :   33.83%    Book Implied   :   28.02%
-    Payout Odds    :     +257    Edge           :  +20.75%
-    To Win         :   $43.11    Expected Value :   +$3.48
-    Stake Basis    :    1.68% of bankroll  [CAPPED]
-    Notes: model 33.8% vs market fair 25.5%; legs: Under 50 (+12.5%), Under 46
-    (+7.4%)
+    True Win Rate  :   31.30%    Book Implied   :   20.62%
+    Payout Odds    :     +385    Edge           :  +51.77%
+    To Win         :   $73.29    Expected Value :   +$9.86
+    Stake Basis    :    1.90% of bankroll  [CAPPED]
+    Notes: model 31.3% vs market fair 18.9%; legs: Los Angeles Chargers ML
+    (+29.5%), San Francisco 49ers +2.5 (+17.2%)
 
-  #5  Ticket W06-2L-05                                            RISK: $16.32
+  #5  Ticket W05-2L-05                                            RISK: $24.96
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    Leg 1 Los Angeles Rams @ Miami Dolphins      Under 50                 (-110)
-    Leg 2 Las Vegas Raiders @ Dallas Cowboys     Over 47                  (-110)
+    Leg 1 Denver Broncos @ Los Angeles Chargers  Los Angeles Chargers ML  (+154)
+    Leg 2 Tampa Bay Buccaneers @ Dallas Cowboys  Dallas Cowboys ML        (-470)
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    True Win Rate  :   33.14%    Book Implied   :   27.44%
-    Payout Odds    :     +264    Edge           :  +20.78%
-    To Win         :   $43.16    Expected Value :   +$3.39
-    Stake Basis    :    1.63% of bankroll  [CAPPED]
-    Notes: model 33.1% vs market fair 25.0%; legs: Under 50 (+12.5%), Over 47
-    (+7.4%)
+    True Win Rate  :   44.37%    Book Implied   :   32.46%
+    Payout Odds    :     +208    Edge           :  +36.68%
+    To Win         :   $51.93    Expected Value :   +$9.15
+    Stake Basis    :    2.50% of bankroll  [CAPPED]
+    Notes: model 44.4% vs market fair 29.9%; legs: Los Angeles Chargers ML
+    (+29.5%), Dallas Cowboys ML (+5.5%)
 
 TOP RECOMMENDED PARLAYS  -  3-LEG COMBINATIONS
 ================================================================================
-  #1  Ticket W06-3L-01                                            RISK: $14.47
+  #1  Ticket W05-3L-01                                            RISK: $12.57
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    Leg 1 Los Angeles Chargers @ Tennessee Ti... Over 45.5                (-110)
-    Leg 2 Los Angeles Rams @ Miami Dolphins      Under 50                 (-110)
-    Leg 3 Arizona Cardinals @ Buffalo Bills      Buffalo Bills ML         (-150)
+    Leg 1 Houston Texans @ Tennessee Titans      Tennessee Titans ML      (+285)
+    Leg 2 Tampa Bay Buccaneers @ Dallas Cowboys  Dallas Cowboys ML        (-470)
+    Leg 3 Cincinnati Bengals @ Miami Dolphins    Cincinnati Bengals ML    (-340)
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    True Win Rate  :   22.28%    Book Implied   :   16.46%
-    Payout Odds    :     +507    Edge           :  +35.37%
-    To Win         :   $73.43    Expected Value :   +$5.12
-    Stake Basis    :    1.45% of bankroll  [CAPPED]
-    Notes: model 22.3% vs market fair 14.5%; legs: Over 45.5 (+14.1%), Under 50
-    (+12.5%), Buffalo Bills ML (+5.5%)
+    True Win Rate  :   23.96%    Book Implied   :   16.55%
+    Payout Odds    :     +504    Edge           :  +44.78%
+    To Win         :   $63.38    Expected Value :   +$5.63
+    Stake Basis    :    1.26% of bankroll  [CAPPED]
+    Notes: model 24.0% vs market fair 14.6%; legs: Tennessee Titans ML (+30.9%),
+    Dallas Cowboys ML (+5.5%), Cincinnati Bengals ML (+4.8%)
 
-  #2  Ticket W06-3L-02                                            RISK: $13.50
+  #2  Ticket W05-3L-02                                             RISK: $8.85
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    Leg 1 Los Angeles Chargers @ Tennessee Ti... Over 45.5                (-110)
-    Leg 2 Los Angeles Rams @ Miami Dolphins      Under 50                 (-110)
-    Leg 3 Minnesota Vikings @ Denver Broncos     Under 46                 (-115)
+    Leg 1 Houston Texans @ Tennessee Titans      Tennessee Titans ML      (+285)
+    Leg 2 Tampa Bay Buccaneers @ Dallas Cowboys  Dallas Cowboys -8.5      (-110)
+    Leg 3 Cincinnati Bengals @ Miami Dolphins    Cincinnati Bengals ML    (-340)
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    True Win Rate  :   20.22%    Book Implied   :   14.68%
-    Payout Odds    :     +581    Edge           :  +37.80%
-    To Win         :   $78.49    Expected Value :   +$5.10
-    Stake Basis    :    1.35% of bankroll  [CAPPED]
-    Notes: model 20.2% vs market fair 12.9%; legs: Over 45.5 (+14.1%), Under 50
-    (+12.5%), Under 46 (+7.4%)
+    True Win Rate  :   16.11%    Book Implied   :   10.51%
+    Payout Odds    :     +851    Edge           :  +53.24%
+    To Win         :   $75.33    Expected Value :   +$4.71
+    Stake Basis    :    0.89% of bankroll  [CAPPED]
+    Notes: model 16.1% vs market fair 9.2%; legs: Tennessee Titans ML (+30.9%),
+    Dallas Cowboys -8.5 (+11.7%), Cincinnati Bengals ML (+4.8%)
 
-  #3  Ticket W06-3L-03                                            RISK: $13.19
+  #3  Ticket W05-3L-03                                             RISK: $7.90
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    Leg 1 Los Angeles Chargers @ Tennessee Ti... Over 45.5                (-110)
-    Leg 2 Los Angeles Rams @ Miami Dolphins      Under 50                 (-110)
-    Leg 3 Las Vegas Raiders @ Dallas Cowboys     Over 47                  (-110)
+    Leg 1 Houston Texans @ Tennessee Titans      Tennessee Titans ML      (+285)
+    Leg 2 Indianapolis Colts @ Pittsburgh Ste... Indianapolis Colts ML    (+124)
+    Leg 3 Cincinnati Bengals @ Miami Dolphins    Cincinnati Bengals ML    (-340)
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    True Win Rate  :   19.81%    Book Implied   :   14.37%
-    Payout Odds    :     +596    Edge           :  +37.83%
-    To Win         :   $78.59    Expected Value :   +$4.99
-    Stake Basis    :    1.32% of bankroll  [CAPPED]
-    Notes: model 19.8% vs market fair 12.6%; legs: Over 45.5 (+14.1%), Under 50
-    (+12.5%), Over 47 (+7.4%)
+    True Win Rate  :   14.05%    Book Implied   :    8.96%
+    Payout Odds    :    +1016    Edge           :  +56.75%
+    To Win         :   $80.27    Expected Value :   +$4.48
+    Stake Basis    :    0.79% of bankroll  [CAPPED]
+    Notes: model 14.0% vs market fair 7.9%; legs: Tennessee Titans ML (+30.9%),
+    Indianapolis Colts ML (+14.2%), Cincinnati Bengals ML (+4.8%)
 
-  #4  Ticket W06-3L-04                                             RISK: $8.42
+  #4  Ticket W05-3L-04                                             RISK: $8.39
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    Leg 1 Minnesota Vikings @ Denver Broncos     Under 46                 (-115)
-    Leg 2 Las Vegas Raiders @ Dallas Cowboys     Over 47                  (-110)
-    Leg 3 Arizona Cardinals @ Buffalo Bills      Buffalo Bills -2.5       (-110)
+    Leg 1 Houston Texans @ Tennessee Titans      Tennessee Titans +7.5    (-110)
+    Leg 2 Indianapolis Colts @ Pittsburgh Ste... Indianapolis Colts ML    (+124)
+    Leg 3 Cincinnati Bengals @ Miami Dolphins    Cincinnati Bengals -6.5  (-110)
   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    True Win Rate  :   18.14%    Book Implied   :   14.68%
-    Payout Odds    :     +581    Edge           :  +23.58%
-    To Win         :   $48.95    Expected Value :   +$1.99
+    True Win Rate  :   17.45%    Book Implied   :   12.25%
+    Payout Odds    :     +716    Edge           :  +42.48%
+    To Win         :   $60.11    Expected Value :   +$3.56
     Stake Basis    :    0.84% of bankroll  [CAPPED]
-    Notes: model 18.1% vs market fair 12.9%; legs: Under 46 (+7.4%), Over 47
-    (+7.4%), Buffalo Bills -2.5 (+7.2%)
-
-  #5  Ticket W06-3L-05                                             RISK: $9.08
-  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    Leg 1 Minnesota Vikings @ Denver Broncos     Under 46                 (-115)
-    Leg 2 Las Vegas Raiders @ Dallas Cowboys     Over 47                  (-110)
-    Leg 3 Arizona Cardinals @ Buffalo Bills      Buffalo Bills ML         (-150)
-  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    True Win Rate  :   20.45%    Book Implied   :   16.81%
-    Payout Odds    :     +495    Edge           :  +21.64%
-    To Win         :   $44.93    Expected Value :   +$1.97
-    Stake Basis    :    0.91% of bankroll  [CAPPED]
-    Notes: model 20.4% vs market fair 14.7%; legs: Under 46 (+7.4%), Over 47
-    (+7.4%), Buffalo Bills ML (+5.5%)
+    Notes: model 17.5% vs market fair 10.7%; legs: Tennessee Titans +7.5
+    (+13.3%), Indianapolis Colts ML (+14.2%), Cincinnati Bengals -6.5 (+10.0%)
 
 WEEKLY EXPOSURE SUMMARY
 ================================================================================
-  Tickets to Place : 10
+  Tickets to Place : 9
   Total Risk       : $149.95  (14.99% of bankroll)
-  Total To Win     : $563.17  (if every ticket hits)
-  Expected Value   : +$40.44
+  Total To Win     : $618.71  (if every ticket hits)
+  Expected Value   : +$70.57
   Bankroll After   : $850.05 reserved / $1,000.00 total
 
 --------------------------------------------------------------------------------

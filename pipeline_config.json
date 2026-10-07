@@ -35,7 +35,11 @@
       "model_noise_total": 1.0,
       "market_noise_margin": 1.0,
       "market_noise_total": 1.5
-    }
+    },
+    "max_tickets_per_game": 4,
+    "max_leg_odds": 300,
+    "rank_by": "growth",
+    "auto_detect_lines": true
   },
   "backtester": {
     "_comment": "policies: flat:<pct> | flat$:<dollars> | kelly:<multiplier>; with_null adds a no-information control",
