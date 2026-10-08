@@ -271,6 +271,7 @@ function stakeAndGroup(tickets, bankroll, cfg, topN, legGroups, portfolioCap) {
   const recommended = staked.filter(isBet), passed = staked.filter(s => !isBet(s)).sort(rankKey);
   const sections = {};
   for (const n of legGroups) {
+    if (!tickets.some(t => t.n_legs === n)) continue;  // no candidates of this size at all
     const bucket = recommended.filter(s => s.ticket.n_legs === n).sort(rankKey).slice(0, topN);
     bucket.forEach((s, i) => { s.rank = i + 1; });
     sections[n + "-LEG"] = bucket;
@@ -391,6 +392,12 @@ function stakeAndGroup(tickets, bankroll, cfg, topN, legGroups, portfolioCap) {
 
     const host = $("sections");
     host.replaceChildren();
+    if (!Object.keys(sections).length) {
+      host.appendChild(el("h2", null, "Recommended parlays"));
+      host.appendChild(el("div", "empty", allTickets.length
+        ? "No ticket clears the stake filters at these settings."
+        : "No parlay cleared this week's filters: two legs only, each leg at least 68% likely by the model and at least 6 points above the book's implied probability. No bets are recommended."));
+    }
     for (const [name, group] of Object.entries(sections)) {
       const h = el("h2", null, name.replace("-LEG", "-leg parlays").replace("4+ LEG / OTHER", "4+ leg parlays"));
       h.appendChild(el("span", "count", group.length ? "top " + group.length : ""));

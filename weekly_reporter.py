@@ -267,6 +267,7 @@ class ReportConfig:
     leg_groups: Tuple[int, ...] = (2, 3)     # leg counts that get their own section
     include_other_groups: bool = True        # show 4+-leg tickets in an "Other" section
     include_skipped: bool = True             # list $0 tickets in a "Passed" appendix
+    hide_empty_groups: bool = True           # drop a leg-count section with no candidates at all
     portfolio_cap_pct: Optional[float] = 0.15  # None disables the weekly exposure cap
     title: str = "NFL PARLAY WEEKLY REPORT CARD"
     source_label: str = ""
@@ -704,10 +705,16 @@ def collect_parlays(
     raw: List[Any] = []
     label = ""
 
+    finder_ran_empty = False
     if source == "finder":
         try:
             raw = load_parlays_from_finder(week, bankroll=bankroll, top_n=top_n, function_name=finder_function)
             label = "parlay_finder.py" + _finder_data_suffix(raw)
+            if not raw:
+                # The finder ran and found nothing that clears its filters. That is a
+                # legitimate "no bets this week" outcome, never a reason to show demo data.
+                finder_ran_empty = True
+                label += " (no ticket cleared the filters this week)"
         except ReporterError as exc:
             logger.warning("parlay_finder unavailable (%s); falling back", exc)
             source = "json" if input_path else "demo"
@@ -726,8 +733,10 @@ def collect_parlays(
         raise ReporterError(f"Unknown source '{source}'. Use finder | json | demo")
 
     tickets, rejected = normalize_tickets(raw, source=source, week=week)
-    if not tickets:
+    if not tickets and not finder_ran_empty:
         raise ReporterError(f"No usable parlay tickets were collected from {label}")
+    if not tickets:
+        logger.warning("Week %d: the finder returned no tickets; the report will say so", week)
     return tickets, rejected, label
 
 
@@ -770,17 +779,23 @@ def group_and_rank(
     leg_groups: Sequence[int],
     top_n: int,
     include_other: bool,
+    hide_empty_groups: bool = True,
 ) -> Tuple[Dict[str, List[StakedTicket]], List[StakedTicket]]:
     """Split recommended tickets (stake > 0) into leg-count sections.
 
     Returns ``(sections, passed)`` where ``sections`` maps a heading like
     ``"2-LEG"`` to its ranked top-N list and ``passed`` holds every $0 ticket.
+    With ``hide_empty_groups`` a leg count that has no candidates at all (for
+    example 3-leg when the finder is capped at two legs) gets no section; a
+    leg count whose candidates were all passed still shows an empty section.
     """
     recommended = [s for s in staked if s.stake.is_bet]
     passed = sorted([s for s in staked if not s.stake.is_bet], key=_rank_key)
 
     sections: Dict[str, List[StakedTicket]] = {}
     for n in leg_groups:
+        if hide_empty_groups and not any(s.ticket.n_legs == n for s in staked):
+            continue
         bucket = sorted([s for s in recommended if s.ticket.n_legs == n], key=_rank_key)[:top_n]
         for i, s in enumerate(bucket, 1):
             s.rank = i
@@ -998,6 +1013,11 @@ def render_report_text(report: WeeklyReport) -> str:
     out.append("")
 
     # ---- Sections -----------------------------------------------------------
+    if not report.sections:
+        out.append("TOP RECOMMENDED PARLAYS")
+        out.append(_HR)
+        out.append("  No parlay cleared this week's filters. No bets are recommended.")
+        out.append("")
     for name, group in report.sections.items():
         out.append(f"TOP RECOMMENDED PARLAYS  -  {name} COMBINATIONS")
         out.append(_HR)
@@ -1073,7 +1093,8 @@ def build_weekly_report(
         rejected.extend(bad)
 
     staked = stake_tickets(normalised, config.bankroll, config.staking, config.portfolio_cap_pct)
-    sections, passed = group_and_rank(staked, config.leg_groups, config.top_n_per_group, config.include_other_groups)
+    sections, passed = group_and_rank(staked, config.leg_groups, config.top_n_per_group, config.include_other_groups,
+                                      config.hide_empty_groups)
     report = WeeklyReport(config=config, sections=sections, passed=passed, rejected=rejected, all_staked=staked)
     report.text = render_report_text(report)
     return report
@@ -1255,6 +1276,12 @@ def _selftest() -> int:
     check(estimate_nfl_week(_dt.date(2026, 8, 1)) == 1 and estimate_nfl_week(_dt.date(2027, 2, 1)) == 18, "clamped to 1..18")
     check(nfl_season_year(_dt.date(2027, 1, 15)) == 2026 and nfl_season_year(_dt.date(2026, 9, 1)) == 2026, "Jan/Feb belong to prior season")
     check(ReportConfig(week=18, bankroll=100, report_date=_dt.date(2027, 1, 5)).season == 2026, "ReportConfig season defaults to season year")
+
+    # Empty slate: a strict finder week renders a clean "no bets" report
+    empty = build_weekly_report([], cfg)
+    check(empty.sections == {} and empty.total_risk == 0 and "No bets are recommended" in empty.text, "empty slate renders a no-bets report")
+    two_only = build_weekly_report([s for s in slate if len(s["legs"]) == 2], cfg)
+    check(set(two_only.sections) == {"2-LEG"}, "leg counts with no candidates get no section")
 
     # Config validation
     for bad_kwargs in ({"week": 0, "bankroll": 100}, {"week": 1, "bankroll": -5}, {"week": 1, "bankroll": float("nan")}):

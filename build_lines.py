@@ -21,6 +21,9 @@ Maintaining 15 rows a week is realistic; maintaining 90 is not.
     model_home_margin,      the model's projected final margin, home minus away (e.g. ESPN FPI "Cowboys by 11.4" -> +11.4 if Dallas is home)
     model_home_win_prob,    the model's probability the home team wins, 0-1 or 0-100
     model_total             optional: the model's projected total points; blank -> totals get no edge
+    home_team_total, away_team_total            optional team total lines (e.g. 24.5)
+    home_tt_over_price, home_tt_under_price,    optional prices for them (blank -> -110)
+    away_tt_over_price, away_tt_under_price
     source                  optional free text recorded in lines.csv notes
 
 Model probabilities per side are derived as::
@@ -28,6 +31,8 @@ Model probabilities per side are derived as::
     P(home covers) = 1 - Phi((spread_point - model_home_margin) / 13.5)   spread_point = -home_spread
     P(home wins)   = model_home_win_prob (or Phi(model_home_margin / 13.5) when blank)
     P(over)        = 1 - Phi((total - model_total) / 10)                 only when model_total is given
+    P(team over)   = 1 - Phi((team_total - model_team_points) / 8.4)     model_team_points = (model_total +/- margin) / 2,
+                                                                         only when BOTH model_total and margin are given
 
 13.5 and 10 are the long-run standard deviations of NFL final margins and
 totals. When a model number is missing, the side's ``model_prob`` is left
@@ -61,6 +66,7 @@ LINES_FILENAME = "lines.csv"
 LINES_COLUMNS = ("week", "away", "home", "market", "selection", "american_odds", "model_prob", "notes")
 MARGIN_SD = 13.5
 TOTAL_SD = 10.0
+TEAM_SD = math.sqrt((TOTAL_SD ** 2 + MARGIN_SD ** 2) / 4.0)
 DEFAULT_PRICE = -110
 
 
@@ -149,6 +155,16 @@ def expand_game(row: Dict[str, Any], line: int = 0) -> List[Dict[str, Any]]:
     if away_ml is not None and home_ml is not None:
         add("moneyline", f"{home} ML", _price(home_ml, "home_ml", line), home_win)
         add("moneyline", f"{away} ML", _price(away_ml, "away_ml", line), None if home_win is None else 1.0 - home_win)
+    for team, key, sign in ((home, "home", +1), (away, "away", -1)):
+        tt_line = _num(r.get(f"{key}_team_total"), f"{key}_team_total", None, line)
+        if tt_line is None:
+            continue
+        p_over = None
+        if model_total is not None and margin is not None:
+            p_over = 1.0 - normal_cdf((tt_line - (model_total + sign * margin) / 2.0) / TEAM_SD)
+        add("team_total", f"{team} Over {tt_line:g}", _price(r.get(f"{key}_tt_over_price"), f"{key}_tt_over_price", line), p_over)
+        add("team_total", f"{team} Under {tt_line:g}", _price(r.get(f"{key}_tt_under_price"), f"{key}_tt_under_price", line),
+            None if p_over is None else 1.0 - p_over)
     if not out:
         raise BuildLinesError(f"line {line}: {away} @ {home} has no spread, total or moneyline")
     return out
@@ -212,9 +228,13 @@ def _selftest() -> int:
     check(abs(sel["Tampa Bay Buccaneers +8.5"]["model_prob"] + p_cover - 1) < 1e-3, "spread sides complementary")
     check(sel["Dallas Cowboys ML"]["model_prob"] == 0.87 and sel["Tampa Bay Buccaneers ML"]["model_prob"] == 0.13, "win prob accepts 0-100")
     check(sel["Over 47.5"]["model_prob"] == "" and sel["Under 47.5"]["model_prob"] == "", "totals blank without model_total")
-    rows2 = expand_game({**row, "model_total": "52", "model_home_win_prob": ""}, 3)
+    rows2 = expand_game({**row, "model_total": "52", "model_home_win_prob": "", "home_team_total": "29.5", "away_team_total": "18.5"}, 3)
     sel2 = {r["selection"]: r for r in rows2}
     check(sel2["Over 47.5"]["model_prob"] > 0.6, "model_total gives an over probability")
+    check(len(rows2) == 10 and sel2["Dallas Cowboys Over 29.5"]["american_odds"] == -110
+          and 0.5 < sel2["Dallas Cowboys Over 29.5"]["model_prob"] < 0.7
+          and abs(sel2["Tampa Bay Buccaneers Under 18.5"]["model_prob"] + sel2["Tampa Bay Buccaneers Over 18.5"]["model_prob"] - 1) < 1e-3,
+          "team totals expand with model probabilities from total and margin")
     check(abs(sel2["Dallas Cowboys ML"]["model_prob"] - round(normal_cdf(11.4 / 13.5), 4)) < 1e-9, "win prob derived from margin when blank")
     try:
         expand_game({"week": "5", "away": "A", "home": "B"}, 4)

@@ -84,17 +84,23 @@ the market plus noise and its picks carry no real edge), which is what `backtest
 Measured over many seasons, the default settings give selected legs a real edge of about +3.5% while
 the model *claims* about +6.9%, a deliberate, realistic winner's-curse gap.
 
-**Selection rules.** Every market side becomes a leg with `edge = p_model * D - 1`. Legs must clear
-`min_leg_edge` (2%) and be priced no longer than `max_leg_odds` (+300). Legs from different games are
-combined into 2- and 3-leg tickets (same-game combos are off by default because their legs are
-correlated), ranked by `rank_by`:
+**Selection rules (the three absolute rules).**
 
-* `growth` (default): `edge² / (D - 1)`, the Kelly log-growth proxy. Prefers a solid edge at a short
-  price over a thin long shot with the same raw edge.
-* `edge`: raw expected profit per dollar.
+1. **Strict 2-leg limit.** `MAX_LEGS = 2`. A configuration asking for 3+ legs is clamped back to 2 with a
+   warning; extra legs multiply variance and degrade the stability of the raw win rate.
+2. **Premium edge filter.** A leg qualifies only when `P_true - P_implied >= 0.06` (`min_prob_gap`) **and**
+   `P_true >= 0.68` (`min_leg_prob`). `P_implied` is the book's vig-inclusive `1 / decimal odds`
+   (`edge_basis: "implied"`); set `"fair"` to measure the gap against the de-vigged market probability.
+3. **Anti-correlation check.** Legs from the same game are allowed only when positively correlated
+   (`same_game_policy: "positive_only"`): Home ML + Home team total Over, favourite spread + favourite
+   ML, game Over + team Over, and so on. Negative traps (Home ML + Away team total Over, spread + Under)
+   and contradictory pairs (both sides of a market) are rejected. `leg_correlation()` holds the matrix.
 
-Tickets are diversified (`max_tickets_per_leg`) and the top `top_n` per leg size are returned. The
-hidden truth used by the simulation never appears in a ticket.
+Legs are also capped at `max_leg_odds` (+300), ranked by `rank_by` (`growth`: `edge² / (D - 1)`, the Kelly
+log-growth proxy; or raw `edge`), and diversified (`max_tickets_per_leg`, `max_tickets_per_game`).
+These filters are strict by design: on a typical slate few or no legs qualify, and the report then says
+"no bets are recommended" rather than inventing tickets. `python3 parlay_finder.py --explain` shows why
+each side was rejected. Markets: spread, total, moneyline and team total (`Buffalo Bills Over 24.5`).
 
 ```python
 import parlay_finder

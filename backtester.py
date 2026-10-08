@@ -128,26 +128,30 @@ def resolve_leg(leg: Dict[str, Any], away_score: int, home_score: int) -> str:
     ``"Away @ Home"`` matchup string.
     """
     away, home = _split_matchup(leg)
-    market, who, line = pf.parse_selection(str(leg["selection"]), str(leg.get("market", "")))
-    if market == "total":
+    ps = pf.parse_selection(str(leg["selection"]), str(leg.get("market", "")))
+    if ps.market == "total":
         total = away_score + home_score
-        assert line is not None
-        if total == line:
+        assert ps.line is not None
+        if total == ps.line:
             return "push"
-        over = total > line
-        return "win" if (over == (who.lower() == "over")) else "loss"
+        return "win" if ((total > ps.line) == ((ps.direction or "").lower() == "over")) else "loss"
 
-    assert who is not None
-    if _team_matches(who, home):
+    assert ps.team is not None
+    if _team_matches(ps.team, home):
         team_score, opp_score = home_score, away_score
-    elif _team_matches(who, away):
+    elif _team_matches(ps.team, away):
         team_score, opp_score = away_score, home_score
     else:
         raise BacktestError(f"Selection '{leg['selection']}' names neither {away} nor {home}")
 
-    if market == "spread":
-        assert line is not None
-        adjusted = team_score + line - opp_score
+    if ps.market == "team_total":
+        assert ps.line is not None
+        if team_score == ps.line:
+            return "push"
+        return "win" if ((team_score > ps.line) == ((ps.direction or "").lower() == "over")) else "loss"
+    if ps.market == "spread":
+        assert ps.line is not None
+        adjusted = team_score + ps.line - opp_score
     else:  # moneyline
         adjusted = team_score - opp_score
     if abs(adjusted) < 1e-9:
@@ -547,6 +551,10 @@ def render_summary(results: BacktestResults) -> str:
     if cfg.portfolio_cap:
         caps += f", max {cfg.portfolio_cap:.0%} weekly exposure"
     out.append(f"  {'Safety Caps':<18}: {caps}")
+    fr = cfg.finder
+    out.append(f"  {'Finder Rules':<18}: {'/'.join(str(n) for n in fr.leg_sizes)}-leg only; leg >= {fr.min_leg_prob:.0%} "
+               f"and >= {fr.min_prob_gap * 100:.0f} pts over {fr.edge_basis}")
+    out.append(f"  {'Same-Game Policy':<18}: {fr.same_game_policy}")
     out.append(f"  {'Tickets Per Week':<18}: top {cfg.top_n} per leg size")
     for variant, c in results.calibration.items():
         label = "Calibration" if variant == "model" else "Null Calibration"
@@ -670,6 +678,9 @@ def _selftest() -> int:
     check(resolve_leg({**leg, "selection": "Over 44"}, 20, 24) == "push", "total push")
     check(resolve_leg({**leg, "selection": "Kansas City Chiefs ML"}, 27, 24) == "win" and resolve_leg({**leg, "selection": "Bills ML"}, 27, 24) == "loss", "moneyline")
     check(resolve_leg({**leg, "selection": "Bills ML"}, 24, 24) == "push", "moneyline tie pushes")
+    check(resolve_leg({**leg, "selection": "Buffalo Bills Over 23.5", "market": "team_total"}, 20, 24) == "win"
+          and resolve_leg({**leg, "selection": "Chiefs Under 20.5", "market": "team_total"}, 20, 24) == "win"
+          and resolve_leg({**leg, "selection": "Buffalo Bills Over 24", "market": "team_total"}, 20, 24) == "push", "team totals grade")
     try:
         resolve_leg({**leg, "selection": "Dallas Cowboys -3"}, 1, 2)
         check(False, "foreign team raises")
@@ -697,7 +708,9 @@ def _selftest() -> int:
     except BacktestError:
         check(True, "unknown policy raises BacktestError")
 
-    finder_cfg = pf.FinderConfig(source="sim", seed=7, season=2026)
+    # Relaxed thresholds give the simulated league enough tickets to exercise the loop;
+    # the production defaults (68% / 6 points) are tested in parlay_finder itself.
+    finder_cfg = pf.FinderConfig(source="sim", seed=7, season=2026, min_leg_prob=0.0, min_prob_gap=0.0, min_leg_edge=0.02)
     wd = build_simulated_season(2026, 7, 4, finder_cfg)
     check(len(wd) == 4 and all(len(w.scores) in (14, 16) for w in wd), "simulated season builds 4 weeks of scores")
     check(all(all(t["week"] == w.week for t in w.tickets) for w in wd), "tickets carry their week")
@@ -736,12 +749,12 @@ def _selftest() -> int:
             w = csv.writer(fh)
             w.writerow(["week", "away", "home", "market", "selection", "american_odds", "model_prob"])
             for wk in (1, 2):
-                w.writerow([wk, "Kansas City Chiefs", "Buffalo Bills", "spread", "Buffalo Bills -3.5", -110, 0.60])
-                w.writerow([wk, "Kansas City Chiefs", "Buffalo Bills", "spread", "Kansas City Chiefs +3.5", -110, 0.40])
-                w.writerow([wk, "Dallas Cowboys", "Philadelphia Eagles", "total", "Over 44.5", -110, 0.60])
-                w.writerow([wk, "Dallas Cowboys", "Philadelphia Eagles", "total", "Under 44.5", -110, 0.40])
-                w.writerow([wk, "Green Bay Packers", "Detroit Lions", "moneyline", "Detroit Lions ML", -130, 0.62])
-                w.writerow([wk, "Green Bay Packers", "Detroit Lions", "moneyline", "Green Bay Packers ML", 110, 0.38])
+                w.writerow([wk, "Kansas City Chiefs", "Buffalo Bills", "spread", "Buffalo Bills -3.5", -110, 0.70])
+                w.writerow([wk, "Kansas City Chiefs", "Buffalo Bills", "spread", "Kansas City Chiefs +3.5", -110, 0.30])
+                w.writerow([wk, "Dallas Cowboys", "Philadelphia Eagles", "total", "Over 44.5", -110, 0.70])
+                w.writerow([wk, "Dallas Cowboys", "Philadelphia Eagles", "total", "Under 44.5", -110, 0.30])
+                w.writerow([wk, "Green Bay Packers", "Detroit Lions", "moneyline", "Detroit Lions ML", -130, 0.72])
+                w.writerow([wk, "Green Bay Packers", "Detroit Lions", "moneyline", "Green Bay Packers ML", 110, 0.28])
         with open(results_csv, "w", newline="", encoding="utf-8") as fh:
             w = csv.writer(fh)
             w.writerow(["week", "away", "home", "away_score", "home_score"])
@@ -752,7 +765,8 @@ def _selftest() -> int:
             w.writerow([2, "Dallas Cowboys", "Philadelphia Eagles", 10, 13])
             w.writerow([2, "Green Bay Packers", "Detroit Lions", 31, 14])
         real_cfg = BacktestConfig(seasons=1, weeks=2, bankroll=500, lines_csv=lines, results_csv=results_csv,
-                                  finder=finder_cfg, policies={"flat_$10": DEFAULT_POLICIES["flat_$10"]})
+                                  finder=pf.FinderConfig(source="csv", lines_csv=lines),
+                                  policies={"flat_$10": DEFAULT_POLICIES["flat_$10"]})
         real = run_backtest(real_cfg)
         wk1 = [r for r in real.ledger if r["week"] == 1]
         wk2 = [r for r in real.ledger if r["week"] == 2]
@@ -791,6 +805,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--lines", default=None, help="Real lines CSV (with --results)")
     p.add_argument("--results", default=None, help="Real results CSV: week,away,home,away_score,home_score")
     p.add_argument("--out-dir", dest="out_dir", default=None, help="Output directory")
+    p.add_argument("--min-leg-prob", type=float, dest="min_leg_prob", default=None, help="Override finder rule 2 floor (e.g. 0.68)")
+    p.add_argument("--min-prob-gap", type=float, dest="min_prob_gap", default=None, help="Override finder rule 2 gap (e.g. 0.06)")
+    p.add_argument("--edge-basis", choices=("implied", "fair"), dest="edge_basis", default=None, help="Override the gap basis")
+    p.add_argument("--same-game", choices=("never", "positive_only", "any"), dest="same_game_policy", default=None)
     p.add_argument("--open", action="store_true", help="Open the summary when done")
     p.add_argument("--no-open", action="store_true", dest="no_open", help="Never open the summary")
     p.add_argument("--quiet", action="store_true", help="Do not print the summary")
@@ -822,6 +840,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             name, pol = parse_policy(str(spec))
             policies[name] = pol
         cap = args.portfolio_cap if args.portfolio_cap is not None else section.get("portfolio_cap", 0.15)
+        finder_cfg = pf.load_finder_config()
+        finder_overrides = {k: v for k, v in (("min_leg_prob", args.min_leg_prob), ("min_prob_gap", args.min_prob_gap),
+                                              ("edge_basis", args.edge_basis), ("same_game_policy", args.same_game_policy)) if v is not None}
+        if finder_overrides:
+            data = {**asdict(finder_cfg), **finder_overrides}
+            data["sim"] = finder_cfg.sim
+            finder_cfg = pf.FinderConfig.from_dict(data)
         cfg = BacktestConfig(
             seasons=int(args.seasons or section.get("seasons", 20)),
             weeks=int(args.weeks or section.get("weeks", 18)),
@@ -836,6 +861,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             lines_csv=args.lines or section.get("lines_csv"),
             results_csv=args.results or section.get("results_csv"),
             out_dir=str(args.out_dir or section.get("out_dir", DEFAULT_OUT_DIR)),
+            finder=finder_cfg,
         )
         if cfg.lines_csv:
             print(f"Backtesting the real season in {os.path.basename(cfg.lines_csv)} + "
