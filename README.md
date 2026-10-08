@@ -12,6 +12,7 @@ backtesting +EV NFL parlays. Every module ships with a built-in self-test.
 | `run_weekly_report.py` | Zero-argument launcher for the weekly report (press Run, no Terminal). |
 | `pipeline_config.json` | The one settings file: bankroll, staking mode, finder and backtester options. |
 | `week_inputs.csv` + `build_lines.py` | This week's games, odds and model numbers (15 rows) and the expander that turns them into `lines.csv`. |
+| `app.py` + `launch_edgebook.py` | **EdgeBook AI**, the Streamlit dashboard: sidebar controls, KPI tiles, the edge signal board, the 2-leg parlay slip engine with a simulated wallet, and the bankroll growth chart. |
 | `report_template.html` + `publish_report.py` | The shareable web page: every weekly run also writes `docs/index.html`, a static page with a live bankroll box and Flat/Kelly switch. |
 
 ```
@@ -38,6 +39,22 @@ league inside `parlay_finder.py`, clearly labelled "NOT real games". To use real
 `lines.csv` into the folder; see **Using real lines**. For live lines without typing, sign up for a
 free key at https://the-odds-api.com, paste it as `"api_key"` under `finder` in
 `pipeline_config.json`, and set `"source": "api"`.
+
+## The dashboard (EdgeBook AI)
+
+`app.py` is a Streamlit front end over the same modules the command line uses. Nothing is
+re-implemented: the sidebar's edge threshold becomes `FinderConfig.min_prob_gap`, the staking mode
+becomes a `StakingConfig`, every ticket is sized by `staking_engine.compute_stake` against the current
+wallet, and the growth chart replays one simulated season through `backtester`. If a module is
+missing or raises, that section switches to clearly labelled demo data and the sidebar's
+"Backend status" panel shows why.
+
+Run it with `streamlit run app.py`, or double-click `launch_edgebook.py` (it installs Streamlit on
+first use and opens the browser). The dark theme lives in `.streamlit/config.toml`. Requirements:
+`pip install -r requirements.txt` (Streamlit and pandas only; the pipeline itself needs nothing).
+
+The "Simulate / Place wager" buttons move money inside the session only. "Reset wallet" restores the
+starting bankroll.
 
 ## The web page (share it)
 

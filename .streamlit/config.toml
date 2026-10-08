@@ -1,0 +1,16 @@
+# EdgeBook AI — Streamlit theme. A dark, analytical palette shared with the
+# published report card (teal accent on graphite surfaces).
+[theme]
+base = "dark"
+primaryColor = "#2fd1bc"
+backgroundColor = "#0f1317"
+secondaryBackgroundColor = "#171c21"
+textColor = "#eef2f5"
+font = "sans serif"
+
+[server]
+headless = true
+runOnSave = false
+
+[browser]
+gatherUsageStats = false

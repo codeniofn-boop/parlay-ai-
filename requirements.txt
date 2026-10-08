@@ -1,0 +1,5 @@
+# The analytics pipeline itself (parlay_finder, staking_engine, weekly_reporter,
+# backtester, build_lines, publish_report) is standard-library only.
+# Only the Streamlit dashboard (app.py) needs these two packages.
+streamlit>=1.32
+pandas>=1.5
