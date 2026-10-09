@@ -86,7 +86,7 @@ INPUTS_FILENAME = "week_inputs.csv"
 PROPS_FILENAME = "props_inputs.csv"
 LINES_FILENAME = "lines.csv"
 LINES_COLUMNS = ("week", "away", "home", "market", "selection", "american_odds", "model_prob",
-                 "player", "player_id", "position", "blocked", "model_note", "notes")
+                 "player", "player_id", "team", "position", "blocked", "model_note", "notes")
 MARGIN_SD = 13.5
 TOTAL_SD = 10.0
 TEAM_SD = math.sqrt((TOTAL_SD ** 2 + MARGIN_SD ** 2) / 4.0)
@@ -218,11 +218,18 @@ def expand_prop(row: Dict[str, Any], line: int = 0, reg: Optional[market_registr
     assert pm is not None
     position = str(r.get("position", "")).strip().upper()
     notes = str(r.get("notes", "") or r.get("source", "")).strip()
+    team = str(r.get("team", "")).strip()
+    if team:
+        low = team.lower()
+        match = next((t for t in (away, home) if t.lower() == low or t.lower().endswith(" " + low)), None)
+        if match is None:
+            raise BuildLinesError(f"line {line}: team '{team}' for {player} is neither {away} nor {home}")
+        team = match
     out: List[Dict[str, Any]] = []
 
     def add(selection: str, odds: int) -> None:
         out.append({"week": week, "away": away, "home": home, "market": key, "selection": selection, "american_odds": odds,
-                    "model_prob": "", "player": player, "position": position, "blocked": "", "model_note": "", "notes": notes})
+                    "model_prob": "", "player": player, "team": team, "position": position, "blocked": "", "model_note": "", "notes": notes})
 
     if pm.is_yes_no:
         yes = next((r.get(k) for k in ("yes_price", "over_price", "price") if str(r.get(k, "") or "").strip() != ""), None)

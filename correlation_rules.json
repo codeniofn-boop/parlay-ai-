@@ -1,0 +1,774 @@
+{
+  "_comment": "Same-game correlation rules for 2-leg parlays (Rule 3). Legs from different games are always 'neutral'. For two legs of the same game the rules are tried top to bottom, in both leg orders, and the first match decides. Labels: positive (allowed under same_game_policy positive_only), negative (rejected under positive_only), neutral (rejected under positive_only, allowed under any), exclusive (both legs cannot win: always rejected), redundant (double-counts one outcome: always rejected).",
+  "_leg_fields": {
+    "kind": "side (spread or moneyline) | total | team_total | prop",
+    "cls": "market class: side, total, team_total, or the cls of a prop market in markets.json (pass_yds, pass_tds, completions, interceptions, rush_yds, rush_att, rec_yds, receptions, rush_rec_yds, anytime_td, first_td); 'any_prop' matches every prop",
+    "dir": "up = Over / Yes (more offence, or the team winning for sides), down = Under / No",
+    "family": "stat families from markets.json; two legs on the same player sharing a family double-count"
+  },
+  "_relations": "same_player, other_player, same_team, other_team, same_market, same_family, same_direction, opposite_direction; favored_by_at_least: N (the side leg's team is favoured by at least N points, moneylines converted to a point equivalent)",
+  "rules": [
+    {
+      "id": "same-player-opposite-sides",
+      "a": {
+        "kind": "prop"
+      },
+      "b": {
+        "kind": "prop"
+      },
+      "relation": [
+        "same_player",
+        "same_market",
+        "opposite_direction"
+      ],
+      "label": "exclusive",
+      "reason": "the same player cannot go over and under the same stat"
+    },
+    {
+      "id": "same-player-same-family",
+      "a": {
+        "kind": "prop"
+      },
+      "b": {
+        "kind": "prop"
+      },
+      "relation": [
+        "same_player",
+        "same_family"
+      ],
+      "label": "redundant",
+      "reason": "two lines on one player's same stat family (rush yards and rush + rec yards, receptions and receiving yards, anytime and first TD) double-count one outcome"
+    },
+    {
+      "id": "first-td-two-players",
+      "a": {
+        "cls": "first_td",
+        "dir": "up"
+      },
+      "b": {
+        "cls": "first_td",
+        "dir": "up"
+      },
+      "relation": [
+        "other_player"
+      ],
+      "label": "exclusive",
+      "reason": "only one player scores the first touchdown"
+    },
+    {
+      "id": "same-player-different-families",
+      "a": {
+        "kind": "prop"
+      },
+      "b": {
+        "kind": "prop"
+      },
+      "relation": [
+        "same_player",
+        "same_direction"
+      ],
+      "label": "positive",
+      "reason": "one player's volume and scoring move together (passing yards and passing TDs, receiving yards and anytime TD)"
+    },
+    {
+      "id": "same-player-mixed-directions",
+      "a": {
+        "kind": "prop"
+      },
+      "b": {
+        "kind": "prop"
+      },
+      "relation": [
+        "same_player",
+        "opposite_direction"
+      ],
+      "label": "negative",
+      "reason": "one player's stats rarely split high and low in the same game"
+    },
+    {
+      "id": "qb-passing-with-receiver",
+      "a": {
+        "cls": [
+          "pass_yds",
+          "completions",
+          "pass_tds"
+        ]
+      },
+      "b": {
+        "cls": [
+          "rec_yds",
+          "receptions",
+          "rush_rec_yds"
+        ]
+      },
+      "relation": [
+        "same_team",
+        "same_direction"
+      ],
+      "label": "positive",
+      "reason": "a quarterback's passing yards are his receivers' receiving yards; both over (or both under) move together"
+    },
+    {
+      "id": "qb-passing-against-receiver",
+      "a": {
+        "cls": [
+          "pass_yds",
+          "completions",
+          "pass_tds"
+        ]
+      },
+      "b": {
+        "cls": [
+          "rec_yds",
+          "receptions",
+          "rush_rec_yds"
+        ]
+      },
+      "relation": [
+        "same_team",
+        "opposite_direction"
+      ],
+      "label": "negative",
+      "reason": "a quarterback over with his receiver under (or the reverse) pulls in opposite directions"
+    },
+    {
+      "id": "qb-passing-tds-with-receiver-td",
+      "a": {
+        "cls": "pass_tds",
+        "dir": "up"
+      },
+      "b": {
+        "cls": [
+          "anytime_td",
+          "first_td"
+        ],
+        "dir": "up"
+      },
+      "relation": [
+        "same_team"
+      ],
+      "label": "positive",
+      "reason": "a receiver's touchdown is a passing touchdown"
+    },
+    {
+      "id": "two-receivers-both-over",
+      "a": {
+        "cls": [
+          "rec_yds",
+          "receptions",
+          "rush_rec_yds"
+        ],
+        "dir": "up"
+      },
+      "b": {
+        "cls": [
+          "rec_yds",
+          "receptions",
+          "rush_rec_yds"
+        ],
+        "dir": "up"
+      },
+      "relation": [
+        "same_team",
+        "other_player"
+      ],
+      "label": "negative",
+      "reason": "two receivers on one team compete for the same targets; both going over is unlikely"
+    },
+    {
+      "id": "two-receivers-both-under",
+      "a": {
+        "cls": [
+          "rec_yds",
+          "receptions",
+          "rush_rec_yds"
+        ],
+        "dir": "down"
+      },
+      "b": {
+        "cls": [
+          "rec_yds",
+          "receptions",
+          "rush_rec_yds"
+        ],
+        "dir": "down"
+      },
+      "relation": [
+        "same_team",
+        "other_player"
+      ],
+      "label": "positive",
+      "reason": "a quiet passing game keeps every receiver under"
+    },
+    {
+      "id": "qb-passing-with-rusher",
+      "a": {
+        "cls": [
+          "pass_yds",
+          "completions"
+        ],
+        "dir": "up"
+      },
+      "b": {
+        "cls": [
+          "rush_yds",
+          "rush_att"
+        ],
+        "dir": "up"
+      },
+      "relation": [
+        "same_team",
+        "other_player"
+      ],
+      "label": "negative",
+      "reason": "a pass-heavy script and a run-heavy script compete for the same plays"
+    },
+    {
+      "id": "rusher-with-own-team-side",
+      "a": {
+        "cls": [
+          "rush_yds",
+          "rush_att",
+          "rush_rec_yds"
+        ],
+        "dir": "up"
+      },
+      "b": {
+        "kind": "side"
+      },
+      "relation": [
+        "same_team"
+      ],
+      "label": "positive",
+      "reason": "teams that lead run the ball; a rushing over goes with the team winning or covering"
+    },
+    {
+      "id": "rusher-against-opponent-side",
+      "a": {
+        "cls": [
+          "rush_yds",
+          "rush_att",
+          "rush_rec_yds"
+        ],
+        "dir": "up"
+      },
+      "b": {
+        "kind": "side"
+      },
+      "relation": [
+        "other_team"
+      ],
+      "label": "negative",
+      "reason": "a rushing over against the opponent winning or covering; in a blowout the trailing team stops running"
+    },
+    {
+      "id": "rusher-under-with-own-team-side",
+      "a": {
+        "cls": [
+          "rush_yds",
+          "rush_att",
+          "rush_rec_yds"
+        ],
+        "dir": "down"
+      },
+      "b": {
+        "kind": "side"
+      },
+      "relation": [
+        "same_team"
+      ],
+      "label": "negative",
+      "reason": "a rushing under with the team winning pulls in opposite directions"
+    },
+    {
+      "id": "rusher-under-with-opponent-side",
+      "a": {
+        "cls": [
+          "rush_yds",
+          "rush_att",
+          "rush_rec_yds"
+        ],
+        "dir": "down"
+      },
+      "b": {
+        "kind": "side"
+      },
+      "relation": [
+        "other_team"
+      ],
+      "label": "positive",
+      "reason": "a team that trails abandons the run"
+    },
+    {
+      "id": "passer-with-own-team-side",
+      "a": {
+        "cls": [
+          "pass_yds",
+          "completions",
+          "pass_tds"
+        ],
+        "dir": "up"
+      },
+      "b": {
+        "kind": "side"
+      },
+      "relation": [
+        "same_team"
+      ],
+      "label": "neutral",
+      "reason": "passing volume rises when trailing and falls when leading, so a passing over and the team winning do not reinforce each other"
+    },
+    {
+      "id": "interceptions-with-own-team-side",
+      "a": {
+        "cls": "interceptions",
+        "dir": "up"
+      },
+      "b": {
+        "kind": "side"
+      },
+      "relation": [
+        "same_team"
+      ],
+      "label": "negative",
+      "reason": "interceptions lose games"
+    },
+    {
+      "id": "interceptions-with-opponent-side",
+      "a": {
+        "cls": "interceptions",
+        "dir": "up"
+      },
+      "b": {
+        "kind": "side"
+      },
+      "relation": [
+        "other_team"
+      ],
+      "label": "positive",
+      "reason": "the opponent benefits from interceptions"
+    },
+    {
+      "id": "td-scorer-with-own-team-side",
+      "a": {
+        "cls": [
+          "anytime_td",
+          "first_td"
+        ],
+        "dir": "up"
+      },
+      "b": {
+        "kind": "side"
+      },
+      "relation": [
+        "same_team"
+      ],
+      "label": "positive",
+      "reason": "a team that scores touchdowns tends to win"
+    },
+    {
+      "id": "td-scorer-against-opponent-side",
+      "a": {
+        "cls": [
+          "anytime_td",
+          "first_td"
+        ],
+        "dir": "up"
+      },
+      "b": {
+        "kind": "side"
+      },
+      "relation": [
+        "other_team"
+      ],
+      "label": "negative",
+      "reason": "a touchdown for one team and the other team winning pull apart"
+    },
+    {
+      "id": "offence-prop-with-own-team-total",
+      "a": {
+        "kind": "prop",
+        "cls": [
+          "pass_yds",
+          "pass_tds",
+          "completions",
+          "rush_yds",
+          "rush_att",
+          "rec_yds",
+          "receptions",
+          "rush_rec_yds",
+          "anytime_td",
+          "first_td"
+        ]
+      },
+      "b": {
+        "kind": "team_total"
+      },
+      "relation": [
+        "same_team",
+        "same_direction"
+      ],
+      "label": "positive",
+      "reason": "a player's production and his team's points move together (anytime TD + team total over, team total over + passing TDs over)"
+    },
+    {
+      "id": "offence-prop-against-own-team-total",
+      "a": {
+        "kind": "prop",
+        "cls": [
+          "pass_yds",
+          "pass_tds",
+          "completions",
+          "rush_yds",
+          "rush_att",
+          "rec_yds",
+          "receptions",
+          "rush_rec_yds",
+          "anytime_td",
+          "first_td"
+        ]
+      },
+      "b": {
+        "kind": "team_total"
+      },
+      "relation": [
+        "same_team",
+        "opposite_direction"
+      ],
+      "label": "negative",
+      "reason": "a player's production over with his team's points under contradicts itself"
+    },
+    {
+      "id": "offence-prop-with-game-total",
+      "a": {
+        "kind": "prop",
+        "cls": [
+          "pass_yds",
+          "pass_tds",
+          "completions",
+          "rec_yds",
+          "receptions",
+          "rush_rec_yds",
+          "anytime_td",
+          "first_td"
+        ]
+      },
+      "b": {
+        "kind": "total"
+      },
+      "relation": [
+        "same_direction"
+      ],
+      "label": "positive",
+      "reason": "passing and scoring production rise with the game total"
+    },
+    {
+      "id": "offence-prop-against-game-total",
+      "a": {
+        "kind": "prop",
+        "cls": [
+          "pass_yds",
+          "pass_tds",
+          "completions",
+          "rec_yds",
+          "receptions",
+          "rush_rec_yds",
+          "anytime_td",
+          "first_td"
+        ]
+      },
+      "b": {
+        "kind": "total"
+      },
+      "relation": [
+        "opposite_direction"
+      ],
+      "label": "negative",
+      "reason": "production over with the game total under contradicts itself"
+    },
+    {
+      "id": "rusher-with-game-total",
+      "a": {
+        "cls": [
+          "rush_yds",
+          "rush_att"
+        ]
+      },
+      "b": {
+        "kind": "total"
+      },
+      "relation": [],
+      "label": "neutral",
+      "reason": "rushing volume and the game total are only loosely linked"
+    },
+    {
+      "id": "prop-with-opponent-team-total",
+      "a": {
+        "kind": "prop"
+      },
+      "b": {
+        "kind": "team_total"
+      },
+      "relation": [
+        "other_team"
+      ],
+      "label": "neutral",
+      "reason": "a player's production and the opponent's points are only loosely linked"
+    },
+    {
+      "id": "props-across-teams",
+      "a": {
+        "kind": "prop"
+      },
+      "b": {
+        "kind": "prop"
+      },
+      "relation": [
+        "other_team"
+      ],
+      "label": "neutral",
+      "reason": "players on opposite teams share a game but not a resource; book pricing may still treat them as correlated"
+    },
+    {
+      "id": "props-same-team-fallback",
+      "a": {
+        "kind": "prop"
+      },
+      "b": {
+        "kind": "prop"
+      },
+      "relation": [
+        "same_team"
+      ],
+      "label": "neutral",
+      "reason": "no specific rule links these two teammates' stats"
+    },
+    {
+      "id": "prop-with-side-fallback",
+      "a": {
+        "kind": "prop"
+      },
+      "b": {
+        "kind": "side"
+      },
+      "relation": [],
+      "label": "neutral",
+      "reason": "no specific rule links this stat to the game result"
+    },
+    {
+      "id": "game-side-same-team",
+      "a": {
+        "kind": "side"
+      },
+      "b": {
+        "kind": "side"
+      },
+      "relation": [
+        "same_team"
+      ],
+      "label": "positive",
+      "reason": "spread and moneyline on the same team win together (a duplicate line is simply positive)"
+    },
+    {
+      "id": "game-side-same-market-other-team",
+      "a": {
+        "kind": "side"
+      },
+      "b": {
+        "kind": "side"
+      },
+      "relation": [
+        "other_team",
+        "same_market"
+      ],
+      "label": "exclusive",
+      "reason": "both sides of one spread or moneyline cannot win"
+    },
+    {
+      "id": "game-side-other-team",
+      "a": {
+        "kind": "side"
+      },
+      "b": {
+        "kind": "side"
+      },
+      "relation": [
+        "other_team"
+      ],
+      "label": "negative",
+      "reason": "one team's spread against the other's moneyline pulls apart"
+    },
+    {
+      "id": "game-total-same-direction",
+      "a": {
+        "kind": "total"
+      },
+      "b": {
+        "kind": "total"
+      },
+      "relation": [
+        "same_direction"
+      ],
+      "label": "positive",
+      "reason": "two overs (or two unders) on the game total"
+    },
+    {
+      "id": "game-total-opposite",
+      "a": {
+        "kind": "total"
+      },
+      "b": {
+        "kind": "total"
+      },
+      "relation": [
+        "opposite_direction"
+      ],
+      "label": "exclusive",
+      "reason": "over and under of the game total cannot both win"
+    },
+    {
+      "id": "team-total-same-team-same-direction",
+      "a": {
+        "kind": "team_total"
+      },
+      "b": {
+        "kind": "team_total"
+      },
+      "relation": [
+        "same_team",
+        "same_direction"
+      ],
+      "label": "positive",
+      "reason": "two overs (or two unders) on one team's total"
+    },
+    {
+      "id": "team-total-same-team-opposite",
+      "a": {
+        "kind": "team_total"
+      },
+      "b": {
+        "kind": "team_total"
+      },
+      "relation": [
+        "same_team",
+        "opposite_direction"
+      ],
+      "label": "exclusive",
+      "reason": "over and under of one team's total cannot both win"
+    },
+    {
+      "id": "team-totals-other-team",
+      "a": {
+        "kind": "team_total"
+      },
+      "b": {
+        "kind": "team_total"
+      },
+      "relation": [
+        "other_team"
+      ],
+      "label": "neutral",
+      "reason": "the two teams' totals are only loosely linked"
+    },
+    {
+      "id": "side-with-own-team-total-over",
+      "a": {
+        "kind": "side"
+      },
+      "b": {
+        "kind": "team_total",
+        "dir": "up"
+      },
+      "relation": [
+        "same_team"
+      ],
+      "label": "positive",
+      "reason": "a team that scores more tends to win or cover (Home ML + Home team total Over)"
+    },
+    {
+      "id": "side-with-own-team-total-under",
+      "a": {
+        "kind": "side"
+      },
+      "b": {
+        "kind": "team_total",
+        "dir": "down"
+      },
+      "relation": [
+        "same_team"
+      ],
+      "label": "negative",
+      "reason": "a team winning while scoring little pulls apart"
+    },
+    {
+      "id": "side-with-opponent-team-total-over",
+      "a": {
+        "kind": "side"
+      },
+      "b": {
+        "kind": "team_total",
+        "dir": "up"
+      },
+      "relation": [
+        "other_team"
+      ],
+      "label": "negative",
+      "reason": "the opponent scoring more makes winning harder (Home ML + Away team total Over trap)"
+    },
+    {
+      "id": "side-with-opponent-team-total-under",
+      "a": {
+        "kind": "side"
+      },
+      "b": {
+        "kind": "team_total",
+        "dir": "down"
+      },
+      "relation": [
+        "other_team"
+      ],
+      "label": "positive",
+      "reason": "holding the opponent down goes with winning"
+    },
+    {
+      "id": "game-total-with-team-total-same-direction",
+      "a": {
+        "kind": "total"
+      },
+      "b": {
+        "kind": "team_total"
+      },
+      "relation": [
+        "same_direction"
+      ],
+      "label": "positive",
+      "reason": "a team's points are part of the game total"
+    },
+    {
+      "id": "game-total-with-team-total-opposite",
+      "a": {
+        "kind": "total"
+      },
+      "b": {
+        "kind": "team_total"
+      },
+      "relation": [
+        "opposite_direction"
+      ],
+      "label": "negative",
+      "reason": "a team over with the game under (or the reverse) pulls apart"
+    },
+    {
+      "id": "game-total-with-side",
+      "a": {
+        "kind": "total"
+      },
+      "b": {
+        "kind": "side"
+      },
+      "relation": [],
+      "label": "neutral",
+      "reason": "the game total says nothing about which team wins"
+    }
+  ]
+}

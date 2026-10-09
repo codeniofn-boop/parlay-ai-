@@ -985,6 +985,8 @@ def fill_model_probs(rows: List[Dict[str, Any]], contexts: Dict[Tuple[int, str, 
         status = model.injury_status(ctx.week, proj.team, proj.player)
         r["position"] = r.get("position") or proj.position
         r["player_id"] = proj.player_id
+        full = team_full_name(proj.team)
+        r["team"] = next((t for t in (str(r.get("away", "")), str(r.get("home", ""))) if team_abbr(t) == proj.team), full)
         if status and status.lower() in block_statuses:
             r["blocked"] = f"ruled out (injury report: {status})"
             r["model_note"] = proj.note

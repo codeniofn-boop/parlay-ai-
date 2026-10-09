@@ -91,6 +91,7 @@ import urllib.request
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Sequence, Tuple
 
+import correlation_rules
 import market_registry
 from market_registry import GAME_MARKETS, RegistryError
 from staking_engine import StakingInputError, american_to_decimal, decimal_to_american
@@ -612,6 +613,9 @@ def load_lines_csv(path: str, week: Optional[int] = None, source: str = "csv") -
             raise FinderError(f"{path} line {i}: player '{player}' given for the game market '{ps.market}'")
         if reg.is_prop(ps.market) and not player:
             raise FinderError(f"{path} line {i}: prop market '{ps.market}' needs a player")
+        team = ps.team
+        if reg.is_prop(ps.market):
+            team = (r.get("team") or "").strip() or None   # the player's team, from the prop model or the props file
         odds = _to_int_odds(r["american_odds"])
         model_prob: Optional[float] = None
         mp = r.get("model_prob", "")
@@ -625,7 +629,7 @@ def load_lines_csv(path: str, week: Optional[int] = None, source: str = "csv") -
             if not 0.0 < model_prob < 1.0:
                 raise FinderError(f"{path} line {i}: model_prob must be in (0, 1), got {model_prob}")
         parsed.append(dict(week=wk, away=r["away"], home=r["home"], market=ps.market, selection=r["selection"],
-                           line=ps.line, team=ps.team, direction=ps.direction, odds=odds, model_prob=model_prob,
+                           line=ps.line, team=team, direction=ps.direction, odds=odds, model_prob=model_prob,
                            player=player or None, player_id=(r.get("player_id") or "").strip() or None,
                            position=(r.get("position") or "").strip().upper() or None,
                            blocked=(r.get("blocked") or "").strip() or None, model_note=(r.get("model_note") or "").strip()))
@@ -1151,11 +1155,14 @@ def select_candidate_legs(sides: Sequence[MarketSide], cfg: FinderConfig) -> Lis
     return ranked[: cfg.max_candidate_legs]
 
 
-def leg_correlation(a: MarketSide, b: MarketSide) -> str:
-    """Correlation class of two legs from the SAME game.
+def leg_correlation_detail(a: MarketSide, b: MarketSide) -> Tuple[str, str, str]:
+    """Correlation class of two legs -> ``(label, rule_id, reason)``.
 
-    Returns ``"positive"``, ``"negative"``, ``"neutral"`` or ``"exclusive"``
-    (the two sides cannot both win).
+    Legs from different games are ``neutral``. Legs from the same game are
+    classified by the table in ``correlation_rules.json`` (see
+    ``correlation_rules.py``): ``positive``, ``negative``, ``neutral``,
+    ``exclusive`` (both cannot win) or ``redundant`` (double-counts one
+    outcome). The game-market rows reproduce the classic matrix:
 
     ============================  ==========  =========
     pair                          same team   other team
@@ -1168,30 +1175,25 @@ def leg_correlation(a: MarketSide, b: MarketSide) -> str:
     both team totals              neutral
     same market, same side        positive (duplicate line); opposite side -> exclusive
     ============================  ==========  =========
+
+    Player props add the rows the table documents (a quarterback with his
+    receiver, a rusher with his team's side, a scorer with his team total, ...).
     """
     if a.game_key != b.game_key:
-        return "neutral"
-    ma, mb = a.market, b.market
-    if ma == mb:
-        if ma in ("spread", "moneyline"):
-            return "positive" if a.team == b.team else "exclusive"
-        if ma == "total":
-            return "positive" if a.direction == b.direction else "exclusive"
-        if ma == "team_total":
-            if a.team == b.team:
-                return "positive" if a.direction == b.direction else "exclusive"
-            return "neutral"
-    pair = {ma, mb}
-    if pair == {"spread", "moneyline"}:
-        return "positive" if a.team == b.team else "negative"
-    if "team_total" in pair and pair & {"spread", "moneyline"}:
-        tt, side = (a, b) if a.market == "team_total" else (b, a)
-        same_team = tt.team == side.team
-        over = (tt.direction or "").lower() == "over"
-        return "positive" if same_team == over else "negative"
-    if pair == {"total", "team_total"}:
-        return "positive" if (a.direction or "").lower() == (b.direction or "").lower() else "negative"
-    return "neutral"
+        return "neutral", "", "different games"
+    try:
+        return correlation_rules.evaluate(a, b)
+    except correlation_rules.RuleError as exc:
+        raise FinderError(str(exc)) from exc
+
+
+def leg_correlation(a: MarketSide, b: MarketSide) -> str:
+    """Correlation label of two legs (``positive`` / ``negative`` / ``neutral`` / ``exclusive`` / ``redundant``)."""
+    return leg_correlation_detail(a, b)[0]
+
+
+SGP_PRICING_NOTE = ("both legs come from one game: books price this as a same-game parlay, not at the independent "
+                    "product shown here; confirm the payout at the book before placing it")
 
 
 # ---------------------------------------------------------------------------
@@ -1200,7 +1202,7 @@ def leg_correlation(a: MarketSide, b: MarketSide) -> str:
 
 
 def _ticket_from_legs(legs: Sequence[MarketSide], week: int, ticket_id: str, source: str,
-                      rank_by: str, correlation: Optional[str]) -> Dict[str, Any]:
+                      rank_by: str, correlation: Optional[str], correlation_reason: str = "") -> Dict[str, Any]:
     p_true = math.prod(leg.model_prob for leg in legs)
     decimal_odds = math.prod(leg.decimal_odds for leg in legs)
     fair = math.prod(leg.fair_prob for leg in legs)
@@ -1208,7 +1210,8 @@ def _ticket_from_legs(legs: Sequence[MarketSide], week: int, ticket_id: str, sou
     legs_text = ", ".join(f"{leg.selection} ({leg.model_prob:.0%}, +{leg.prob_gap('implied') * 100:.1f} pts)" for leg in legs)
     note = f"model {p_true:.1%} vs market fair {fair:.1%}; legs: {legs_text}"
     if correlation:
-        note += f"; same-game pair, {correlation} correlation (joint probability shown as the independent product, a conservative floor)"
+        note += (f"; same-game pair, {correlation} correlation ({correlation_reason}); joint probability shown as the independent "
+                 f"product, a conservative floor; {SGP_PRICING_NOTE}")
     groups = {"prop" if leg.is_prop else "game" for leg in legs}
     experimental = any(leg.experimental for leg in legs)
     if experimental:
@@ -1220,26 +1223,33 @@ def _ticket_from_legs(legs: Sequence[MarketSide], week: int, ticket_id: str, sou
         "decimal_odds": round(decimal_odds, 6), "american_odds": decimal_to_american(decimal_odds),
         "edge": round(edge, 6), "rank_score": round(rank_score(p_true, decimal_odds, rank_by), 6),
         "same_game": correlation is not None, "correlation": correlation,
+        "correlation_reason": correlation_reason if correlation else None,
+        "sgp_required": correlation is not None, "pricing_note": SGP_PRICING_NOTE if correlation else "",
         "market_group": groups.pop() if len(groups) == 1 else "mixed", "experimental": experimental,
         "notes": note, "source": source,
     }
 
 
-def _combo_allowed(combo: Sequence[MarketSide], cfg: FinderConfig) -> Tuple[bool, Optional[str]]:
-    """Rule 3 for one combination -> ``(allowed, correlation_label_or_None)``."""
+def _combo_allowed(combo: Sequence[MarketSide], cfg: FinderConfig) -> Tuple[bool, Optional[str], str]:
+    """Rule 3 for one combination -> ``(allowed, correlation_label_or_None, reason)``.
+
+    Exclusive and redundant pairs are rejected under every policy; ``never``
+    rejects every same-game pair; ``positive_only`` keeps positive pairs only.
+    """
     label: Optional[str] = None
+    reason = ""
     for a, b in itertools.combinations(combo, 2):
         if a.game_key != b.game_key:
             continue
-        corr = leg_correlation(a, b)
-        if corr == "exclusive":
-            return False, None
+        corr, _rule_id, why = leg_correlation_detail(a, b)
+        if corr in ("exclusive", "redundant"):
+            return False, corr, why
         if cfg.same_game_policy == "never":
-            return False, None
+            return False, corr, "same-game pairs are disabled (same_game_policy = never)"
         if cfg.same_game_policy == "positive_only" and corr != "positive":
-            return False, None
-        label = corr
-    return True, label
+            return False, corr, why
+        label, reason = corr, why
+    return True, label, reason
 
 
 def build_parlays(sides: Sequence[MarketSide], week: int, cfg: Optional[FinderConfig] = None) -> List[Dict[str, Any]]:
@@ -1255,19 +1265,19 @@ def build_parlays(sides: Sequence[MarketSide], week: int, cfg: Optional[FinderCo
     usage: Dict[Tuple[Any, ...], int] = {}
     game_usage: Dict[Tuple[Any, ...], int] = {}
     for size in cfg.leg_sizes:
-        combos: List[Tuple[float, Tuple[MarketSide, ...], Optional[str]]] = []
+        combos: List[Tuple[float, Tuple[MarketSide, ...], Optional[str], str]] = []
         for combo in itertools.combinations(candidates, size):
-            allowed, corr = _combo_allowed(combo, cfg)
+            allowed, corr, why = _combo_allowed(combo, cfg)
             if not allowed:
                 continue
             p = math.prod(leg.model_prob for leg in combo)
             d = math.prod(leg.decimal_odds for leg in combo)
             if p * d - 1.0 <= 0:
                 continue
-            combos.append((rank_score(p, d, cfg.rank_by), combo, corr))
+            combos.append((rank_score(p, d, cfg.rank_by), combo, corr, why))
         combos.sort(key=lambda item: (-item[0], -math.prod(leg.model_prob for leg in item[1])))
         kept = 0
-        for _score, combo, corr in combos:
+        for _score, combo, corr, why in combos:
             keys = [(leg.game_key, leg.selection) for leg in combo]
             games = {leg.game_key for leg in combo}
             if any(usage.get(k, 0) >= cfg.max_tickets_per_leg for k in keys):
@@ -1279,7 +1289,7 @@ def build_parlays(sides: Sequence[MarketSide], week: int, cfg: Optional[FinderCo
             for g in games:
                 game_usage[g] = game_usage.get(g, 0) + 1
             kept += 1
-            tickets.append(_ticket_from_legs(combo, week, f"W{week:02d}-{size}L-{kept:02d}", source, cfg.rank_by, corr))
+            tickets.append(_ticket_from_legs(combo, week, f"W{week:02d}-{size}L-{kept:02d}", source, cfg.rank_by, corr, why))
             if kept >= cfg.top_n:
                 break
     return tickets
@@ -1481,6 +1491,36 @@ def _selftest() -> int:
     check(leg_correlation(over, H_ml) == "neutral" and leg_correlation(H_tt_o, A_tt_o) == "neutral", "neutral pairs")
     check(leg_correlation(H_sp, A_sp) == "exclusive" and leg_correlation(over, under) == "exclusive" and leg_correlation(H_ml, A_ml) == "exclusive", "exclusive pairs")
 
+    # Rule 3 for player props comes from correlation_rules.json; the matched reason travels onto the ticket
+    def prop(market: str, player: str, team: str, direction: str, line: Optional[float], p: float = 0.7) -> MarketSide:
+        reg_ = market_registry.registry()
+        pm_ = reg_.get(market)
+        assert pm_ is not None
+        sel = market_registry.format_prop_selection(pm_, player, direction, line)
+        return MarketSide(week=1, away="A", home="H", market=market, selection=sel, american_odds=-110, model_prob=p, fair_prob=0.5,
+                          line=line, direction=direction, player=player, team=team)
+    qb_o = prop("passing_yards", "QB One", "H", "Over", 250.5)
+    wr_o = prop("receiving_yards", "WR One", "H", "Over", 70.5)
+    rb_o = prop("rushing_yards", "RB Two", "A", "Over", 60.5)
+    check(leg_correlation(qb_o, wr_o) == "positive" and leg_correlation(rb_o, H_sp) == "negative" and leg_correlation(rb_o, A_ml) == "positive",
+          "props: QB with his receiver positive; opponent's rusher against the favourite negative; rusher with his own side positive")
+    qb_u = prop("passing_yards", "QB One", "H", "Under", 250.5, 0.3)
+    rb_rr = prop("rush_rec_yards", "RB Two", "A", "Over", 80.5)
+    check(leg_correlation(qb_o, qb_u) == "exclusive" and leg_correlation(rb_o, rb_rr) == "redundant", "same player over/under exclusive; nested stats redundant")
+    label_d, rule_id, why_d = leg_correlation_detail(qb_o, wr_o)
+    check(label_d == "positive" and rule_id == "qb-passing-with-receiver" and "receiv" in why_d, "correlation detail names the rule and its reason")
+    check(leg_correlation(qb_o, prop("passing_yards", "QB Two", "A", "Over", 230.5)) == "neutral", "props across teams are neutral")
+    for policy in ("positive_only", "any"):
+        allowed_r, corr_r, _why_r = _combo_allowed((rb_o, rb_rr), FinderConfig(same_game_policy=policy))
+        check(not allowed_r and corr_r == "redundant", f"redundant pairs are rejected under same_game_policy={policy}")
+    allowed_n, _c, why_n = _combo_allowed((qb_o, wr_o), FinderConfig(same_game_policy="never"))
+    check(not allowed_n and "never" in why_n, "same_game_policy=never rejects even positive prop pairs")
+    sg_ticket = _ticket_from_legs((qb_o, wr_o), 1, "T", "csv", "growth", "positive", why_d)
+    check(sg_ticket["sgp_required"] and sg_ticket["pricing_note"] and sg_ticket["correlation_reason"] == why_d and "same-game parlay" in sg_ticket["notes"],
+          "same-game tickets carry the SGP pricing flag, note and reason")
+    cross = _ticket_from_legs((qb_o, prop("passing_yards", "QB Two", "A", "Over", 230.5)), 1, "T2", "csv", "growth", None)
+    check(not cross["sgp_required"] and cross["pricing_note"] == "" and cross["correlation_reason"] is None, "cross-game tickets carry no SGP flag")
+
     # Rule 1: clamp
     clamped = FinderConfig(leg_sizes=(2, 3, 4))
     check(clamped.leg_sizes == (2,), "3+ leg sizes clamped to 2")
@@ -1584,18 +1624,22 @@ def _selftest() -> int:
         ppath = os.path.join(tmp, "props_lines.csv")
         with open(ppath, "w", newline="", encoding="utf-8") as fh:
             w = csv.writer(fh)
-            w.writerow(["week", "away", "home", "market", "selection", "american_odds", "model_prob", "player", "position", "blocked"])
-            w.writerow([6, "Kansas City Chiefs", "Buffalo Bills", "passing_yards", "Josh Allen Over 249.5 Passing Yards", -115, 0.74, "Josh Allen", "QB", ""])
-            w.writerow([6, "Kansas City Chiefs", "Buffalo Bills", "passing_yards", "Josh Allen Under 249.5 Passing Yards", -105, 0.26, "Josh Allen", "QB", ""])
-            w.writerow([6, "Kansas City Chiefs", "Buffalo Bills", "anytime_td", "James Cook Anytime TD", -130, 0.70, "James Cook", "RB", ""])
-            w.writerow([6, "Kansas City Chiefs", "Buffalo Bills", "receiving_yards", "Travis Kelce Over 60.5 Receiving Yards", -110, "", "Travis Kelce", "TE", "ruled out (injury report: Out)"])
-            w.writerow([6, "Kansas City Chiefs", "Buffalo Bills", "receiving_yards", "Travis Kelce Under 60.5 Receiving Yards", -110, "", "Travis Kelce", "TE", "ruled out (injury report: Out)"])
+            w.writerow(["week", "away", "home", "market", "selection", "american_odds", "model_prob", "player", "team", "position", "blocked"])
+            w.writerow([6, "Kansas City Chiefs", "Buffalo Bills", "passing_yards", "Josh Allen Over 249.5 Passing Yards", -115, 0.74, "Josh Allen", "Buffalo Bills", "QB", ""])
+            w.writerow([6, "Kansas City Chiefs", "Buffalo Bills", "passing_yards", "Josh Allen Under 249.5 Passing Yards", -105, 0.26, "Josh Allen", "Buffalo Bills", "QB", ""])
+            w.writerow([6, "Kansas City Chiefs", "Buffalo Bills", "anytime_td", "James Cook Anytime TD", -130, 0.70, "James Cook", "Buffalo Bills", "RB", ""])
+            w.writerow([6, "Kansas City Chiefs", "Buffalo Bills", "receiving_yards", "Travis Kelce Over 60.5 Receiving Yards", -110, "", "Travis Kelce", "Kansas City Chiefs", "TE", "ruled out (injury report: Out)"])
+            w.writerow([6, "Kansas City Chiefs", "Buffalo Bills", "receiving_yards", "Travis Kelce Under 60.5 Receiving Yards", -110, "", "Travis Kelce", "Kansas City Chiefs", "TE", "ruled out (injury report: Out)"])
             w.writerow([6, "Dallas Cowboys", "Philadelphia Eagles", "moneyline", "Philadelphia Eagles ML", -150, 0.75])
         psides = load_lines_csv(ppath, week=6)
         allen_o = next(s for s in psides if s.selection.startswith("Josh Allen Over"))
         allen_u = next(s for s in psides if s.selection.startswith("Josh Allen Under"))
-        check(len(psides) == 6 and allen_o.player == "Josh Allen" and allen_o.position == "QB" and allen_o.is_prop
-              and abs(allen_o.fair_prob + allen_u.fair_prob - 1) < 1e-9, "prop rows load with player, position and a two-way de-vig")
+        check(len(psides) == 6 and allen_o.player == "Josh Allen" and allen_o.position == "QB" and allen_o.is_prop and allen_o.team == "Buffalo Bills"
+              and abs(allen_o.fair_prob + allen_u.fair_prob - 1) < 1e-9, "prop rows load with player, team, position and a two-way de-vig")
+        t_any = find_parlays(6, config=FinderConfig(source="csv", lines_csv=ppath, top_n=10, same_game_policy="any"))
+        sg = [t for t in t_any if t["same_game"]]
+        check(bool(sg) and all(t["sgp_required"] and t["pricing_note"] and t["correlation_reason"] for t in sg),
+              f"same-game prop tickets are flagged for SGP pricing with a reason ({len(sg)})")
         cook = next(s for s in psides if s.market == "anytime_td")
         check(cook.direction == "Yes" and cook.line is None and abs(cook.fair_prob - cook.implied_prob) < 1e-12, "single-sided yes/no prop uses the implied price as fair")
         kelce = [s for s in psides if s.player == "Travis Kelce"]
