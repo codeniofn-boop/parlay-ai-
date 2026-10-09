@@ -1,0 +1,117 @@
+================================================================================
+                         NFL PARLAY WEEKLY REPORT CARD
+                      Simulated NFL Week 5  |  2026 Season
+                            Friday, October 09, 2026
+================================================================================
+  Generated        : 2026-10-09 18:47:52
+  Bankroll         : $1,000.00
+  Staking Mode     : Fractional Kelly Criterion  [Mode B]  -  0.25x Kelly
+  Safety Caps      : max 5% per ticket, max 15% total weekly exposure
+  Pick Source      : parlay_finder.py (real lines from lines.csv)
+  Slate            : 4 candidates  ->  3 recommended, 0 passed, 0 rejected
+  Leg Filter       : 10 of 152 sides clear the filter (14 markets; table below)
+  Parlays          : you asked for 3; 4 qualified; top 3 by expected value shown
+--------------------------------------------------------------------------------
+
+TOP RECOMMENDED PARLAYS  -  2-LEG COMBINATIONS
+================================================================================
+  #1  Ticket W05-2L-01                                            RISK: $50.00
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    Leg 1  Jalen Hurts Under 9.5 Rushing Attempts                         (-105)
+           Philadelphia Eagles @ Jacksonville Jaguars | model 97.2% | implied
+           51.2% | EXPERIMENTAL
+    Leg 2  Justin Jefferson Under 84.5 Receiving Yards                    (-105)
+           Minnesota Vikings @ New Orleans Saints | model 87.5% | implied 51.2%
+           | EXPERIMENTAL
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    True Win Rate  :   84.99%    Book Implied   :   26.23%
+    Payout Odds    :     +281    Edge           : +223.95%
+    To Win         :  $140.59    Expected Value : +$111.98
+    Stake Basis    :    5.00% of bankroll  [CAPPED]
+    Model: EXPERIMENTAL prop model on leg 1, 2; its probabilities are not yet
+    validated by the backtest calibration gate.
+    Notes: model 85.0% vs market fair 23.9%; legs: Jalen Hurts Under 9.5 Rushing
+    Attempts (97%, +45.9 pts), Justin Jefferson Under 84.5 Receiving Yards (87%,
+    +36.3 pts); EXPERIMENTAL prop model on Jalen Hurts, Justin Jefferson
+
+  #2  Ticket W05-2L-02                                            RISK: $50.00
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    Leg 1  Jalen Hurts Under 9.5 Rushing Attempts                         (-105)
+           Philadelphia Eagles @ Jacksonville Jaguars | model 97.2% | implied
+           51.2% | EXPERIMENTAL
+    Leg 2  J.J. McCarthy Under 224.5 Passing Yards                        (-110)
+           Minnesota Vikings @ New Orleans Saints | model 88.2% | implied 52.4%
+           | EXPERIMENTAL
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    True Win Rate  :   85.68%    Book Implied   :   26.83%
+    Payout Odds    :     +273    Edge           : +219.34%
+    To Win         :  $136.36    Expected Value : +$109.67
+    Stake Basis    :    5.00% of bankroll  [CAPPED]
+    Model: EXPERIMENTAL prop model on leg 1, 2; its probabilities are not yet
+    validated by the backtest calibration gate.
+    Notes: model 85.7% vs market fair 24.5%; legs: Jalen Hurts Under 9.5 Rushing
+    Attempts (97%, +45.9 pts), J.J. McCarthy Under 224.5 Passing Yards (88%,
+    +35.8 pts); EXPERIMENTAL prop model on Jalen Hurts, J.J. McCarthy
+
+  #3  Ticket W05-2L-03                                            RISK: $50.00
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    Leg 1  Saquon Barkley Under 84.5 Rushing Yards                        (-110)
+           Philadelphia Eagles @ Jacksonville Jaguars | model 94.3% | implied
+           52.4% | EXPERIMENTAL
+    Leg 2  Justin Jefferson Under 84.5 Receiving Yards                    (-105)
+           Minnesota Vikings @ New Orleans Saints | model 87.5% | implied 51.2%
+           | EXPERIMENTAL
+  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    True Win Rate  :   82.49%    Book Implied   :   26.83%
+    Payout Odds    :     +273    Edge           : +207.48%
+    To Win         :  $136.36    Expected Value : +$103.74
+    Stake Basis    :    5.00% of bankroll  [CAPPED]
+    Model: EXPERIMENTAL prop model on leg 1, 2; its probabilities are not yet
+    validated by the backtest calibration gate.
+    Notes: model 82.5% vs market fair 24.5%; legs: Saquon Barkley Under 84.5
+    Rushing Yards (94%, +41.9 pts), Justin Jefferson Under 84.5 Receiving Yards
+    (87%, +36.3 pts); EXPERIMENTAL prop model on Saquon Barkley, Justin
+    Jefferson
+
+WEEKLY EXPOSURE SUMMARY
+================================================================================
+  Tickets to Place : 3
+  Total Risk       : $150.00  (15.00% of bankroll)
+  Total To Win     : $413.32  (if every ticket hits)
+  Expected Value   : +$325.38
+  Bankroll After   : $850.00 reserved / $1,000.00 total
+
+QUALIFIED BUT BEYOND YOUR LIMIT OF 3  -  1 MORE TICKET(S), RANKED BY EV
+================================================================================
+  W05-2L-04    2L    +273  P=82.3%  Imp=26.8%  Edge=+206.6%  EV=+$103.30
+               Saquon Barkley Under 104.5 Rush + Rec Yards / Justin Jefferson...
+               -> would stake $50.00 before the weekly cap; raise max_parlays to
+               -> include it
+
+LEGS CLEARING THE FILTER BY MARKET
+================================================================================
+  Market              Sides  Pass     Rule  Best P  Best gap  Top reason
+  ------------------  -----  ----  -------  ------  --------  ------------------
+  Spread                 30     0     68/6   61.4%    +9.0pt  below floor (30)
+  Total                  30     0     68/6   50.0%    -2.4pt  below floor (30)
+  Moneyline              30     0     68/6   87.0%   +12.5pt  below floor (25)
+  Passing Yards*         14     2     68/6   88.2%   +35.8pt  below floor (10)
+  Passing TDs*            2     0     68/6   53.2%    +4.4pt  below floor (2)
+  Completions*            4     0     68/6   56.2%    +3.8pt  below floor (4)
+  Interceptions*          2     0     68/6     n/a       n/a  ruled out (inju...
+  Rushing Yards*          8     2     68/6   94.3%   +41.9pt  below floor (6)
+  Rushing Attempts*       2     1     68/6   97.2%   +45.9pt  below floor (1)
+  Receiving Yards*       12     2     68/6   92.5%   +41.3pt  below floor (6)
+  Receptions*             4     1     68/6   74.9%   +19.3pt  below floor (3)
+  Rush + Rec Yards*       6     2     68/6   94.0%   +41.6pt  below floor (4)
+  Anytime TD*             7     0     68/6   63.6%    +6.2pt  below floor (5)
+  First TD*               1     0     68/8    5.1%    -9.1pt  price too long (1)
+  Rule = leg probability floor % / edge gap points, from finder.market_rules in
+  pipeline_config.json (global min_leg_prob / min_prob_gap otherwise).
+  * = experimental prop model.
+
+--------------------------------------------------------------------------------
+    Edge = (P_true x Decimal Odds) - 1   |   Stakes rounded DOWN to the cent
+         For simulation / research purposes only. Not financial advice.
+Bet only what you can afford to lose. In the US, help is available at 1-800-GAMBLER.
+================================================================================

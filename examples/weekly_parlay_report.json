@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-10-08T00:01:37",
+  "generated_at": "2026-10-09T18:54:46",
   "config": {
     "week": 5,
     "season": 2026,
-    "report_date": "2026-10-08",
+    "report_date": "2026-10-09",
     "bankroll": 1000.0,
     "staking": {
       "mode": "kelly",
@@ -23,7 +23,9 @@
       3
     ],
     "portfolio_cap_pct": 0.15,
-    "source_label": "parlay_finder.py (no ticket cleared the filters this week)"
+    "source_label": "parlay_finder.py (no ticket cleared the filters this week)",
+    "max_parlays": 3,
+    "count_same_game": false
   },
   "summary": {
     "tickets_collected": 0,
@@ -33,9 +35,93 @@
     "total_risk": 0,
     "total_risk_pct_of_bankroll": 0.0,
     "total_expected_value": 0,
-    "total_potential_profit": 0
+    "total_potential_profit": 0,
+    "requested": 3,
+    "qualified": 0,
+    "cap_scale": 1.0,
+    "message": "You asked for 3. 0 qualified."
   },
   "sections": {},
+  "beyond_limit": [],
+  "same_game": [],
   "passed": [],
-  "rejected": []
+  "rejected": [],
+  "slate": {
+    "week": 5,
+    "source": "csv",
+    "sides": 90,
+    "passed": 0,
+    "candidates": 0,
+    "markets": 3,
+    "edge_basis": "implied",
+    "global_rule": {
+      "min_leg_prob": 0.68,
+      "min_prob_gap": 0.06
+    },
+    "by_market": {
+      "spread": {
+        "market": "spread",
+        "label": "Spread",
+        "is_prop": false,
+        "experimental": false,
+        "enabled": true,
+        "sides": 30,
+        "passed": 0,
+        "blocked": 0,
+        "min_leg_prob": 0.68,
+        "min_prob_gap": 0.06,
+        "best_prob": 0.6137,
+        "best_gap": 0.08989047619047619,
+        "reasons": {
+          "model probability below 68%": 30
+        }
+      },
+      "total": {
+        "market": "total",
+        "label": "Total",
+        "is_prop": false,
+        "experimental": false,
+        "enabled": true,
+        "sides": 30,
+        "passed": 0,
+        "blocked": 0,
+        "min_leg_prob": 0.68,
+        "min_prob_gap": 0.06,
+        "best_prob": 0.5,
+        "best_gap": -0.023809523809523836,
+        "reasons": {
+          "model probability below 68%": 30
+        }
+      },
+      "moneyline": {
+        "market": "moneyline",
+        "label": "Moneyline",
+        "is_prop": false,
+        "experimental": false,
+        "enabled": true,
+        "sides": 30,
+        "passed": 0,
+        "blocked": 0,
+        "min_leg_prob": 0.68,
+        "min_prob_gap": 0.06,
+        "best_prob": 0.87,
+        "best_gap": 0.12521739130434784,
+        "reasons": {
+          "gap over implied probability below 6%": 4,
+          "priced longer than +300": 1,
+          "model probability below 68%": 25
+        }
+      }
+    },
+    "table": [
+      "  Market              Sides  Pass     Rule  Best P  Best gap  Top reason",
+      "  ------------------  -----  ----  -------  ------  --------  ------------------",
+      "  Spread                 30     0     68/6   61.4%    +9.0pt  below floor (30)",
+      "  Total                  30     0     68/6   50.0%    -2.4pt  below floor (30)",
+      "  Moneyline              30     0     68/6   87.0%   +12.5pt  below floor (25)",
+      "  Rule = leg probability floor % / edge gap points, from finder.market_rules in",
+      "  pipeline_config.json (global min_leg_prob / min_prob_gap otherwise).",
+      "  * = experimental prop model."
+    ]
+  }
 }

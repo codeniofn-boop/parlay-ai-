@@ -2,17 +2,24 @@
                           NFL PARLAY BACKTEST SUMMARY
                20 simulated season(s) x 18 weeks  |  2026 ratings
 ================================================================================
-  Generated         : 2026-10-08 00:02:21
+  Generated         : 2026-10-09 18:54:50
   Starting Bankroll : $1,000.00
   Pick Source       : parlay_finder.py, simulated league
   Model Settings    : skill 0.50, noise 0.75 pt (null control included)
   Safety Caps       : max 5% per ticket, max 15% weekly exposure
   Finder Rules      : 2-leg only; leg >= 68% and >= 6 pts over implied
-  Same-Game Policy  : positive_only
-  Tickets Per Week  : top 5 per leg size
+  Same-Game Policy  : positive_only; same-game (SGP) tickets set aside
+  Tickets Per Week  : up to 5, ranked by expected value
   Calibration       : claimed 0.0% avg win prob, hit 0.0% (n=0)
   Null Calibration  : claimed 0.0% avg win prob, hit 0.0% (n=0)
 --------------------------------------------------------------------------------
+
+GAME MARKETS vs PLAYER PROPS  (prop legs use the EXPERIMENTAL model)
+================================================================================
+  No player-prop tickets in this run: the simulated league posts game markets
+  only.
+  'mixed' tickets pair one game-market leg with one player-prop leg.
+  Closing line value: only computed in real-data mode (lines.csv + results.csv).
 
 RETURNS BY STAKING POLICY  (one outcome per season)
 ================================================================================
@@ -52,6 +59,9 @@ HOW TO READ THIS
   claimed rate well above the hit rate means the model is over-confident.
   Rows tagged [null] use a model with NO real information: a policy that
   still 'wins' there is riding luck, not edge.
+  Player-prop results are reported apart because their model is experimental;
+  a prop leg is graded from the player's nflverse stat line that week.
 --------------------------------------------------------------------------------
-                    For simulation / research purposes only
+         For simulation / research purposes only. Not financial advice.
+       Bet only what you can afford to lose. US help line: 1-800-GAMBLER.
 ================================================================================

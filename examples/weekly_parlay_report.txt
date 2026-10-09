@@ -1,19 +1,22 @@
 ================================================================================
                          NFL PARLAY WEEKLY REPORT CARD
                       Simulated NFL Week 5  |  2026 Season
-                           Thursday, October 08, 2026
+                            Friday, October 09, 2026
 ================================================================================
-  Generated        : 2026-10-08 00:01:37
+  Generated        : 2026-10-09 18:54:46
   Bankroll         : $1,000.00
   Staking Mode     : Fractional Kelly Criterion  [Mode B]  -  0.25x Kelly
   Safety Caps      : max 5% per ticket, max 15% total weekly exposure
   Pick Source      : parlay_finder.py (no ticket cleared the filters this week)
   Slate            : 0 candidates  ->  0 recommended, 0 passed, 0 rejected
+  Leg Filter       : 0 of 90 sides clear the filter (3 markets; table below)
+  Parlays          : you asked for 3; 0 qualified
 --------------------------------------------------------------------------------
 
 TOP RECOMMENDED PARLAYS
 ================================================================================
   No parlay cleared this week's filters. No bets are recommended.
+  You asked for 3. 0 qualified.
 
 WEEKLY EXPOSURE SUMMARY
 ================================================================================
@@ -23,7 +26,19 @@ WEEKLY EXPOSURE SUMMARY
   Expected Value   : +$0.00
   Bankroll After   : $1,000.00 reserved / $1,000.00 total
 
+LEGS CLEARING THE FILTER BY MARKET
+================================================================================
+  Market              Sides  Pass     Rule  Best P  Best gap  Top reason
+  ------------------  -----  ----  -------  ------  --------  ------------------
+  Spread                 30     0     68/6   61.4%    +9.0pt  below floor (30)
+  Total                  30     0     68/6   50.0%    -2.4pt  below floor (30)
+  Moneyline              30     0     68/6   87.0%   +12.5pt  below floor (25)
+  Rule = leg probability floor % / edge gap points, from finder.market_rules in
+  pipeline_config.json (global min_leg_prob / min_prob_gap otherwise).
+  * = experimental prop model.
+
 --------------------------------------------------------------------------------
     Edge = (P_true x Decimal Odds) - 1   |   Stakes rounded DOWN to the cent
-                    For simulation / research purposes only
+         For simulation / research purposes only. Not financial advice.
+       Bet only what you can afford to lose. US help line: 1-800-GAMBLER.
 ================================================================================
