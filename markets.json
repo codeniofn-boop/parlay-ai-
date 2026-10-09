@@ -21,9 +21,16 @@
     "prior_season_weight": 0.35,
     "min_games": 2,
     "usage_prior_games": 3,
-    "rate_pseudo_counts": {"attempts": 150, "carries": 60, "targets": 40},
+    "rate_pseudo_counts": {
+      "attempts": 150,
+      "carries": 60,
+      "targets": 40
+    },
     "opponent_shrink": 0.5,
-    "opponent_clamp": [0.75, 1.25],
+    "opponent_clamp": [
+      0.75,
+      1.25
+    ],
     "script": {
       "_comment": "Pass volume rises for underdogs and rush volume rises for favourites, per point of spread; total volume scales with the posted total relative to league_total.",
       "pass_per_point": 0.012,
@@ -31,154 +38,347 @@
       "total_elasticity": 0.5,
       "league_total": 45.0
     },
-    "usage_play_type": {"attempts": "pass", "targets": "pass", "carries": "rush"},
+    "usage_play_type": {
+      "attempts": "pass",
+      "targets": "pass",
+      "carries": "rush"
+    },
     "first_td_team_factor": 0.6,
     "high_variance_extra_gap": 0.02,
-    "block_injury_status": ["Out", "Doubtful"]
+    "block_injury_status": [
+      "Out",
+      "Doubtful"
+    ],
+    "_calibration": "Spread parameters were tuned on the 2025 walk-forward calibration (python3 prop_model.py --calibrate --season 2025): dispersion ratios of 1.14 (passing yards), 1.21 (completions), 0.91 (receiving yards), 0.94 (receptions) and 1.08 (rushing attempts) pointed at these values. Re-run after changing anything here."
   },
   "prop_markets": {
     "passing_yards": {
       "label": "Passing Yards",
-      "aliases": ["pass yds", "passing yds", "pass yards", "py"],
+      "aliases": [
+        "pass yds",
+        "passing yds",
+        "pass yards",
+        "py"
+      ],
       "kind": "over_under",
-      "parts": [{"stat": "passing_yards", "usage": "attempts"}],
+      "parts": [
+        {
+          "stat": "passing_yards",
+          "usage": "attempts"
+        }
+      ],
       "distribution": "normal",
-      "sd_intercept": 15.0,
-      "sd_slope": 0.28,
-      "families": ["pass_volume"],
+      "sd_intercept": 20.0,
+      "sd_slope": 0.3,
+      "families": [
+        "pass_volume"
+      ],
       "cls": "pass_yds",
-      "positions": ["QB"],
+      "positions": [
+        "QB"
+      ],
       "high_variance": false,
       "experimental": true
     },
     "passing_tds": {
       "label": "Passing TDs",
-      "aliases": ["pass tds", "passing touchdowns", "pass td", "passing td"],
+      "aliases": [
+        "pass tds",
+        "passing touchdowns",
+        "pass td",
+        "passing td"
+      ],
       "kind": "over_under",
-      "parts": [{"stat": "passing_tds", "usage": "attempts"}],
+      "parts": [
+        {
+          "stat": "passing_tds",
+          "usage": "attempts"
+        }
+      ],
       "distribution": "poisson",
       "rate_pseudo": 300,
-      "families": ["pass_scoring"],
+      "families": [
+        "pass_scoring"
+      ],
       "cls": "pass_tds",
-      "positions": ["QB"],
+      "positions": [
+        "QB"
+      ],
       "high_variance": false,
       "experimental": true
     },
     "completions": {
       "label": "Completions",
-      "aliases": ["pass completions", "completions", "comp"],
+      "aliases": [
+        "pass completions",
+        "completions",
+        "comp"
+      ],
       "kind": "over_under",
-      "parts": [{"stat": "completions", "usage": "attempts"}],
+      "parts": [
+        {
+          "stat": "completions",
+          "usage": "attempts"
+        }
+      ],
       "distribution": "negbin",
-      "dispersion": 25.0,
-      "families": ["pass_volume"],
+      "dispersion": 13.0,
+      "families": [
+        "pass_volume"
+      ],
       "cls": "completions",
-      "positions": ["QB"],
+      "positions": [
+        "QB"
+      ],
       "high_variance": false,
       "experimental": true
     },
     "interceptions": {
       "label": "Interceptions",
-      "aliases": ["ints", "int", "interceptions thrown", "picks"],
+      "aliases": [
+        "ints",
+        "int",
+        "interceptions thrown",
+        "picks"
+      ],
       "kind": "over_under",
-      "parts": [{"stat": "passing_interceptions", "usage": "attempts"}],
+      "parts": [
+        {
+          "stat": "passing_interceptions",
+          "usage": "attempts"
+        }
+      ],
       "distribution": "poisson",
       "rate_pseudo": 500,
-      "families": ["turnover"],
+      "families": [
+        "turnover"
+      ],
       "cls": "interceptions",
-      "positions": ["QB"],
+      "positions": [
+        "QB"
+      ],
       "high_variance": false,
       "experimental": true
     },
     "rushing_yards": {
       "label": "Rushing Yards",
-      "aliases": ["rush yds", "rushing yds", "rush yards", "ry"],
+      "aliases": [
+        "rush yds",
+        "rushing yds",
+        "rush yards",
+        "ry"
+      ],
       "kind": "over_under",
-      "parts": [{"stat": "rushing_yards", "usage": "carries"}],
+      "parts": [
+        {
+          "stat": "rushing_yards",
+          "usage": "carries"
+        }
+      ],
       "distribution": "gamma",
       "sd_intercept": 10.0,
       "sd_slope": 0.45,
-      "families": ["rush_volume"],
+      "families": [
+        "rush_volume"
+      ],
       "cls": "rush_yds",
-      "positions": ["RB", "QB", "WR"],
+      "positions": [
+        "RB",
+        "QB",
+        "WR"
+      ],
       "high_variance": false,
       "experimental": true
     },
     "rushing_attempts": {
       "label": "Rushing Attempts",
-      "aliases": ["rush attempts", "carries", "rush att", "rushing att"],
+      "aliases": [
+        "rush attempts",
+        "carries",
+        "rush att",
+        "rushing att"
+      ],
       "kind": "over_under",
-      "parts": [{"stat": "carries", "usage": "carries"}],
+      "parts": [
+        {
+          "stat": "carries",
+          "usage": "carries"
+        }
+      ],
       "distribution": "negbin",
-      "dispersion": 12.0,
-      "families": ["rush_volume"],
+      "dispersion": 9.0,
+      "families": [
+        "rush_volume"
+      ],
       "cls": "rush_att",
-      "positions": ["RB", "QB"],
+      "positions": [
+        "RB",
+        "QB"
+      ],
       "high_variance": false,
       "experimental": true
     },
     "receiving_yards": {
       "label": "Receiving Yards",
-      "aliases": ["rec yds", "receiving yds", "rec yards", "recv yds"],
+      "aliases": [
+        "rec yds",
+        "receiving yds",
+        "rec yards",
+        "recv yds"
+      ],
       "kind": "over_under",
-      "parts": [{"stat": "receiving_yards", "usage": "targets"}],
+      "parts": [
+        {
+          "stat": "receiving_yards",
+          "usage": "targets"
+        }
+      ],
       "distribution": "gamma",
       "sd_intercept": 10.0,
-      "sd_slope": 0.55,
-      "families": ["rec_volume"],
+      "sd_slope": 0.5,
+      "families": [
+        "rec_volume"
+      ],
       "cls": "rec_yds",
-      "positions": ["WR", "TE", "RB"],
+      "positions": [
+        "WR",
+        "TE",
+        "RB"
+      ],
       "high_variance": false,
       "experimental": true
     },
     "receptions": {
       "label": "Receptions",
-      "aliases": ["rec", "catches", "recs"],
+      "aliases": [
+        "rec",
+        "catches",
+        "recs"
+      ],
       "kind": "over_under",
-      "parts": [{"stat": "receptions", "usage": "targets"}],
+      "parts": [
+        {
+          "stat": "receptions",
+          "usage": "targets"
+        }
+      ],
       "distribution": "negbin",
-      "dispersion": 10.0,
-      "families": ["rec_volume"],
+      "dispersion": 14.0,
+      "families": [
+        "rec_volume"
+      ],
       "cls": "receptions",
-      "positions": ["WR", "TE", "RB"],
+      "positions": [
+        "WR",
+        "TE",
+        "RB"
+      ],
       "high_variance": false,
       "experimental": true
     },
     "rush_rec_yards": {
       "label": "Rush + Rec Yards",
-      "aliases": ["rush + receiving yards", "rushing + receiving yards", "rush rec yds", "rush + rec yds", "scrimmage yards", "rush and receiving yards"],
+      "aliases": [
+        "rush + receiving yards",
+        "rushing + receiving yards",
+        "rush rec yds",
+        "rush + rec yds",
+        "scrimmage yards",
+        "rush and receiving yards"
+      ],
       "kind": "over_under",
-      "parts": [{"stat": "rushing_yards", "usage": "carries"}, {"stat": "receiving_yards", "usage": "targets"}],
+      "parts": [
+        {
+          "stat": "rushing_yards",
+          "usage": "carries"
+        },
+        {
+          "stat": "receiving_yards",
+          "usage": "targets"
+        }
+      ],
       "distribution": "gamma",
       "sd_intercept": 12.0,
       "sd_slope": 0.45,
-      "families": ["rush_volume", "rec_volume"],
+      "families": [
+        "rush_volume",
+        "rec_volume"
+      ],
       "cls": "rush_rec_yds",
-      "positions": ["RB", "WR", "TE"],
+      "positions": [
+        "RB",
+        "WR",
+        "TE"
+      ],
       "high_variance": false,
       "experimental": true
     },
     "anytime_td": {
       "label": "Anytime TD",
-      "aliases": ["anytime touchdown", "anytime td scorer", "anytime touchdown scorer", "atd", "td scorer", "to score a td"],
+      "aliases": [
+        "anytime touchdown",
+        "anytime td scorer",
+        "anytime touchdown scorer",
+        "atd",
+        "td scorer",
+        "to score a td"
+      ],
       "kind": "yes_no",
-      "parts": [{"stat": "rushing_tds", "usage": "carries"}, {"stat": "receiving_tds", "usage": "targets"}],
+      "parts": [
+        {
+          "stat": "rushing_tds",
+          "usage": "carries"
+        },
+        {
+          "stat": "receiving_tds",
+          "usage": "targets"
+        }
+      ],
       "distribution": "poisson",
-      "families": ["scoring"],
+      "families": [
+        "scoring"
+      ],
       "cls": "anytime_td",
-      "positions": ["RB", "WR", "TE", "QB"],
+      "positions": [
+        "RB",
+        "WR",
+        "TE",
+        "QB"
+      ],
       "high_variance": false,
       "experimental": true
     },
     "first_td": {
       "label": "First TD",
-      "aliases": ["first touchdown", "first td scorer", "first touchdown scorer", "1st td", "1st touchdown"],
+      "aliases": [
+        "first touchdown",
+        "first td scorer",
+        "first touchdown scorer",
+        "1st td",
+        "1st touchdown"
+      ],
       "kind": "yes_no",
-      "parts": [{"stat": "rushing_tds", "usage": "carries"}, {"stat": "receiving_tds", "usage": "targets"}],
+      "parts": [
+        {
+          "stat": "rushing_tds",
+          "usage": "carries"
+        },
+        {
+          "stat": "receiving_tds",
+          "usage": "targets"
+        }
+      ],
       "distribution": "first_td",
-      "families": ["scoring"],
+      "families": [
+        "scoring"
+      ],
       "cls": "first_td",
-      "positions": ["RB", "WR", "TE", "QB"],
+      "positions": [
+        "RB",
+        "WR",
+        "TE",
+        "QB"
+      ],
       "high_variance": true,
       "experimental": true
     }

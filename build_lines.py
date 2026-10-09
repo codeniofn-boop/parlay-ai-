@@ -85,7 +85,7 @@ INPUTS_FILENAME = "week_inputs.csv"
 PROPS_FILENAME = "props_inputs.csv"
 LINES_FILENAME = "lines.csv"
 LINES_COLUMNS = ("week", "away", "home", "market", "selection", "american_odds", "model_prob",
-                 "player", "position", "blocked", "model_note", "notes")
+                 "player", "player_id", "position", "blocked", "model_note", "notes")
 MARGIN_SD = 13.5
 TOTAL_SD = 10.0
 TEAM_SD = math.sqrt((TOTAL_SD ** 2 + MARGIN_SD ** 2) / 4.0)
@@ -288,12 +288,51 @@ def build_lines_rows(inputs_path: str, week: Optional[int] = None) -> List[Dict[
     return rows
 
 
+def model_prop_rows(prop_rows: List[Dict[str, Any]], inputs_path: str, week: Optional[int] = None,
+                    offline: Optional[bool] = None) -> Dict[str, int]:
+    """Fill ``model_prob`` on prop rows through ``prop_model.py`` (EXPERIMENTAL). Never raises.
+
+    When the model or its data is unavailable the rows keep a blank
+    ``model_prob`` (no edge) and a ``blocked`` reason, and a warning says why.
+    ``offline`` defaults to the EDGEBOOK_OFFLINE environment variable.
+    """
+    counts = {"projected": 0, "blocked": 0, "missing": len(prop_rows)}
+    if not prop_rows:
+        counts["missing"] = 0
+        return counts
+    if offline is None:
+        offline = os.environ.get("EDGEBOOK_OFFLINE", "").strip().lower() in ("1", "true", "yes")
+    try:
+        import prop_model
+    except ImportError as exc:
+        logger.warning("prop_model.py not available (%s); player props carry no model probability", exc)
+        for r in prop_rows:
+            r["blocked"] = "no projection (prop_model.py missing)"
+        return counts
+    try:
+        contexts = prop_model.contexts_from_inputs(inputs_path, week)
+        counts = prop_model.fill_model_probs(prop_rows, contexts, offline=offline)
+    except prop_model.PropModelError as exc:
+        logger.warning("Prop model unavailable (%s); player props carry no model probability", exc)
+        for r in prop_rows:
+            if not r.get("model_prob"):
+                r["blocked"] = f"no projection ({exc})"
+        counts = {"projected": 0, "blocked": len(prop_rows), "missing": 0}
+    return counts
+
+
 def build_lines_csv(inputs_path: str = INPUTS_FILENAME, out_path: str = LINES_FILENAME, week: Optional[int] = None,
-                    props_path: Optional[str] = None, include_props: bool = True) -> str:
-    """week_inputs.csv (+ props_inputs.csv beside it, or ``props_path``) -> lines.csv."""
+                    props_path: Optional[str] = None, include_props: bool = True, model_props: bool = True) -> str:
+    """week_inputs.csv (+ props_inputs.csv beside it, or ``props_path``) -> lines.csv.
+
+    Prop rows get their ``model_prob`` from ``prop_model.py`` unless
+    ``model_props`` is False (or the model cannot run, in which case they are
+    written with a ``blocked`` reason and no edge).
+    """
     rows = build_lines_rows(inputs_path, week)
     games = {(r["week"], r["away"], r["home"]) for r in rows}
     n_props = 0
+    model_counts: Dict[str, int] = {}
     if include_props:
         if props_path is None:
             candidate = os.path.join(os.path.dirname(os.path.abspath(inputs_path)), PROPS_FILENAME)
@@ -305,6 +344,8 @@ def build_lines_csv(inputs_path: str = INPUTS_FILENAME, out_path: str = LINES_FI
                     raise BuildLinesError(f"{os.path.basename(props_path)}: {pr['player']} is listed for {pr['away']} @ {pr['home']} "
                                           f"(week {pr['week']}), which is not a game in {os.path.basename(inputs_path)}; "
                                           f"team names must match that file exactly")
+            if model_props and prop_rows:
+                model_counts = model_prop_rows(prop_rows, inputs_path, week)
             rows.extend(prop_rows)
             n_props = len(prop_rows)
     abs_out = os.path.abspath(out_path)
@@ -312,8 +353,13 @@ def build_lines_csv(inputs_path: str = INPUTS_FILENAME, out_path: str = LINES_FI
         writer = csv.DictWriter(fh, fieldnames=list(LINES_COLUMNS), restval="")
         writer.writeheader()
         writer.writerows(rows)
-    logger.info("Wrote %d line rows for %d game(s)%s to %s", len(rows), len(games),
-                f" including {n_props} player-prop side(s)" if n_props else "", abs_out)
+    detail = ""
+    if n_props:
+        detail = f" including {n_props} player-prop side(s)"
+        if model_counts:
+            detail += (f" ({model_counts.get('projected', 0)} projected by the experimental prop model, "
+                       f"{model_counts.get('blocked', 0)} blocked)")
+    logger.info("Wrote %d line rows for %d game(s)%s to %s", len(rows), len(games), detail, abs_out)
     return abs_out
 
 

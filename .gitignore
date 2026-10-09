@@ -18,3 +18,6 @@ venv/
 /results.csv
 /model_probs.csv
 /parlays_week_*.json
+
+# nflverse downloads for the prop model (re-fetched automatically)
+/data_cache/
