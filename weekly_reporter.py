@@ -271,6 +271,7 @@ class ReportConfig:
     portfolio_cap_pct: Optional[float] = 0.15  # None disables the weekly exposure cap
     title: str = "NFL PARLAY WEEKLY REPORT CARD"
     source_label: str = ""
+    slate_summary: Optional[Dict[str, Any]] = None   # parlay_finder's per-market filter diagnostics, when available
 
     def __post_init__(self) -> None:
         if not isinstance(self.week, int) or isinstance(self.week, bool) or self.week < 1:
@@ -304,6 +305,12 @@ class ReportConfig:
             "portfolio_cap_pct": self.portfolio_cap_pct,
             "source_label": self.source_label,
         }
+
+
+class TicketBatch(list):
+    """A list of tickets that also carries the finder's ``slate_summary`` (per-market filter counts)."""
+
+    slate_summary: Optional[Dict[str, Any]] = None
 
 
 # ---------------------------------------------------------------------------
@@ -579,7 +586,9 @@ def load_parlays_from_finder(
         result = func(**kwargs)
     except Exception as exc:
         raise ReporterError(f"{module_name}.{chosen}() raised {type(exc).__name__}: {exc}") from exc
-    tickets = _unwrap_collection(result)
+    tickets = TicketBatch(_unwrap_collection(result))
+    summary = getattr(result, "slate_summary", None)
+    tickets.slate_summary = summary if isinstance(summary, dict) else None
     logger.info("parlay_finder returned %d candidate ticket(s)", len(tickets))
     return tickets
 
@@ -732,7 +741,9 @@ def collect_parlays(
     if source not in ("finder", "json", "demo"):
         raise ReporterError(f"Unknown source '{source}'. Use finder | json | demo")
 
-    tickets, rejected = normalize_tickets(raw, source=source, week=week)
+    good, rejected = normalize_tickets(raw, source=source, week=week)
+    tickets = TicketBatch(good)
+    tickets.slate_summary = getattr(raw, "slate_summary", None)
     if not tickets and not finder_ran_empty:
         raise ReporterError(f"No usable parlay tickets were collected from {label}")
     if not tickets:
@@ -867,6 +878,7 @@ class WeeklyReport:
             "sections": {name: [s.to_dict() for s in group] for name, group in self.sections.items()},
             "passed": [s.to_dict() for s in self.passed],
             "rejected": self.rejected,
+            "slate": self.config.slate_summary,
         }
 
     def save_text(self, path: str = DEFAULT_REPORT_FILENAME) -> str:
@@ -1009,6 +1021,10 @@ def render_report_text(report: WeeklyReport) -> str:
             f"{len(report.passed)} passed, {len(report.rejected)} rejected",
         )
     )
+    slate = cfg.slate_summary or {}
+    if slate.get("sides"):
+        out.append(_kv("Leg Filter", f"{slate.get('passed', 0)} of {slate['sides']} sides clear the filter "
+                                     f"({slate.get('markets', 0)} markets; table below)"))
     out.append(_HR2)
     out.append("")
 
@@ -1038,6 +1054,20 @@ def render_report_text(report: WeeklyReport) -> str:
     out.append(_kv("Expected Value", _money(report.total_expected_value, signed=True)))
     out.append(_kv("Bankroll After", f"${cfg.bankroll - report.total_risk:,.2f} reserved / ${cfg.bankroll:,.2f} total"))
     out.append("")
+
+    # ---- Leg filter by market (tuning aid for finder.market_rules) ---------
+    by_market = slate.get("by_market") if isinstance(slate, dict) else None
+    if by_market:
+        out.append("LEGS CLEARING THE FILTER BY MARKET")
+        out.append(_HR)
+        table = slate.get("table")
+        if isinstance(table, list) and table:
+            out.extend(str(line) for line in table)
+        else:  # the finder did not render a table; a plain fallback
+            for row in by_market.values():
+                out.append(f"  {_fit(row.get('label', ''), 28):<28} {row.get('passed', 0):>4} of {row.get('sides', 0):<4} pass  "
+                           f"(floor {float(row.get('min_leg_prob', 0)) * 100:g}%, gap {float(row.get('min_prob_gap', 0)) * 100:g} pts)")
+        out.append("")
 
     # ---- Passed tickets appendix ------------------------------------------
     if cfg.include_skipped and report.passed:
@@ -1123,6 +1153,7 @@ def run_weekly_report(
     config = ReportConfig(
         week=week, bankroll=bankroll, staking=staking, report_date=report_date,
         top_n_per_group=top_n, portfolio_cap_pct=portfolio_cap_pct, source_label=label,
+        slate_summary=getattr(tickets, "slate_summary", None),
     )
     report = build_weekly_report(tickets, config, rejected=rejected)
     saved = report.save_text(output_path)
@@ -1239,12 +1270,19 @@ def _selftest() -> int:
         mod_path = os.path.join(tmp, "parlay_finder.py")
         with open(mod_path, "w", encoding="utf-8") as fh:
             fh.write(
+                "class _L(list):\n"
+                "    slate_summary = None\n"
                 "def find_parlays(week, top_n=10, **kw):\n"
-                "    return {'parlays': [\n"
+                "    out = _L([\n"
                 "        {'ticket_id': f'F{week}', 'legs': [\n"
                 "            {'matchup': 'A @ B', 'selection': 'B -3', 'american_odds': -110, 'p_true': 0.57},\n"
                 "            {'matchup': 'C @ D', 'selection': 'Over 45', 'american_odds': -110, 'p_true': 0.56},\n"
-                "        ]}]}\n"
+                "        ]}])\n"
+                "    out.slate_summary = {'sides': 4, 'passed': 2, 'markets': 2, 'candidates': 2,\n"
+                "        'by_market': {'spread': {'label': 'Spread', 'sides': 2, 'passed': 1, 'min_leg_prob': 0.68, 'min_prob_gap': 0.06},\n"
+                "                      'passing_yards': {'label': 'Passing Yards', 'experimental': True, 'sides': 2, 'passed': 1, 'min_leg_prob': 0.55, 'min_prob_gap': 0.04}},\n"
+                "        'table': ['  Spread  2  1', '  Passing Yards*  2  1']}\n"
+                "    return out\n"
             )
         sys.path.insert(0, tmp)
         try:
@@ -1252,6 +1290,16 @@ def _selftest() -> int:
             tickets, rejected, label = collect_parlays(9, source="finder", bankroll=1000, top_n=3)
             check(len(tickets) == 1 and tickets[0].ticket_id == "F9" and label == "parlay_finder.py",
                   "collect_parlays calls parlay_finder.find_parlays(week=...)")
+            summ = getattr(tickets, "slate_summary", None)
+            check(isinstance(summ, dict) and summ.get("sides") == 4, "collect_parlays carries the finder's slate summary")
+            rep = build_weekly_report(tickets, ReportConfig(week=9, bankroll=1000.0, report_date=_dt.date(2026, 10, 7), slate_summary=summ))
+            check("LEGS CLEARING THE FILTER BY MARKET" in rep.text and "Passing Yards*" in rep.text
+                  and "2 of 4 sides clear the filter" in rep.text and rep.to_dict()["slate"]["passed"] == 2,
+                  "report renders the per-market leg table, the header line and the JSON 'slate' block")
+            fallback = build_weekly_report(tickets, ReportConfig(week=9, bankroll=1000.0, report_date=_dt.date(2026, 10, 7),
+                                                                 slate_summary={**summ, "table": []}))
+            check("Passing Yards" in fallback.text and "floor 55%" in fallback.text, "report falls back to a plain per-market list without a table")
+            check(max(len(line) for line in rep.text.splitlines()) <= REPORT_WIDTH, "slate table keeps the report inside its width")
         finally:
             sys.path.remove(tmp)
             sys.modules.pop("parlay_finder", None)

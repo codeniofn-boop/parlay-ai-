@@ -246,40 +246,65 @@ def _demo_path(bankroll: float, weeks: int = SEASON_WEEKS, seed: int = 11) -> Li
 # ===========================================================================
 
 
-def build_finder_config(week: int, min_gap: float, min_prob: float, edge_basis: str, same_game: str, sim_only: bool) -> Any:
+def default_prop_rule() -> Tuple[float, float]:
+    """The player-prop thresholds pipeline_config.json currently applies (floor, gap), for the sidebar defaults."""
+    pf = BACKEND.finder
+    try:
+        base = pf.load_finder_config()
+        rule = base.rule_for("passing_yards")
+        return float(rule.min_leg_prob), float(rule.min_prob_gap)
+    except Exception:
+        return 0.68, 0.06
+
+
+def build_finder_config(week: int, min_gap: float, min_prob: float, edge_basis: str, same_game: str, sim_only: bool,
+                        prop_prob: Optional[float] = None, prop_gap: Optional[float] = None) -> Any:
     """Translate sidebar settings into a ``parlay_finder.FinderConfig``.
 
     Starts from pipeline_config.json so anything not exposed in the UI (seed,
-    caps, markets, API key) stays in sync with the command-line pipeline.
+    caps, markets, API key) stays in sync with the command-line pipeline. The
+    two prop sliders become a ``market_rules["props"]`` entry that replaces any
+    per-prop rule in the config file, so what you see is what the sliders say.
     """
     pf = BACKEND.finder
     base = pf.load_finder_config()
     data = {**asdict(base), "min_prob_gap": min_gap, "min_leg_prob": min_prob, "edge_basis": edge_basis,
             "same_game_policy": same_game, "auto_detect_lines": not sim_only, "top_n": TOP_N_PER_GROUP * 2}
     data["sim"] = base.sim
+    if prop_prob is not None and prop_gap is not None:
+        try:
+            import market_registry
+            is_prop = market_registry.registry().is_prop
+        except Exception:  # pragma: no cover - registry missing: keep the config file's rules
+            is_prop = lambda m: False  # noqa: E731
+        rules = {k: v for k, v in dict(base.market_rules).items() if not is_prop(k)}
+        rules["props"] = {"min_leg_prob": float(prop_prob), "min_prob_gap": float(prop_gap)}
+        data["market_rules"] = rules
     return pf.FinderConfig.from_dict(data)
 
 
 @st.cache_data(show_spinner=False, ttl=300)
-def load_slate(week: int, min_gap: float, min_prob: float, edge_basis: str, same_game: str, sim_only: bool
-               ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, int], str, Optional[str]]:
+def load_slate(week: int, min_gap: float, min_prob: float, edge_basis: str, same_game: str, sim_only: bool,
+               prop_prob: float, prop_gap: float
+               ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, int], Dict[str, Dict[str, Any]], str, Optional[str]]:
     """Run the finder once per settings combination.
 
-    Returns ``(candidate_legs, tickets, rejection_counts, data_source, error)``.
+    Returns ``(candidate_legs, tickets, rejection_counts, by_market, data_source, error)``.
     Cached for five minutes keyed on every argument, so moving a slider only
     re-runs the engine when the inputs actually changed.
     """
     pf = BACKEND.finder
     try:
-        cfg = build_finder_config(week, min_gap, min_prob, edge_basis, same_game, sim_only)
+        cfg = build_finder_config(week, min_gap, min_prob, edge_basis, same_game, sim_only, prop_prob, prop_gap)
         sides = pf.collect_sides(week, cfg)
         legs = [s.to_leg_dict() for s in pf.select_candidate_legs(sides, cfg)]
-        tickets = pf.build_parlays(sides, week, cfg)
+        tickets = list(pf.build_parlays(sides, week, cfg))
         rejected = pf.explain_legs(sides, cfg)
+        by_market = pf.explain_by_market(sides, cfg) if hasattr(pf, "explain_by_market") else {}
         source = sides[0].source if sides else cfg.source
-        return legs, tickets, rejected, source, None
+        return legs, tickets, rejected, by_market, source, None
     except Exception as exc:  # any finder failure -> caller shows demo data with the reason
-        return [], [], {}, "error", f"{type(exc).__name__}: {exc}"
+        return [], [], {}, {}, "error", f"{type(exc).__name__}: {exc}"
 
 
 def build_staking_config(mode: str, flat_kind: str, flat_value: float, kelly_fraction: float) -> Any:
@@ -430,6 +455,14 @@ with st.sidebar:
     with st.expander("Advanced filters"):
         min_prob_pct = float(st.slider("Minimum leg win probability", min_value=50, max_value=80, value=68, step=1,
                                        format="%d%%", help="Each leg's model probability must be at least this high."))
+        cfg_prop_floor, cfg_prop_gap = default_prop_rule() if BACKEND.live else (0.68, 0.06)
+        st.caption("Player props (experimental model). Most over/under props are priced near 50%, so they need their own thresholds.")
+        prop_prob_pct = float(st.slider("Prop leg probability floor", min_value=50, max_value=80,
+                                        value=int(round(min(80, max(50, cfg_prop_floor * 100)))), step=1, format="%d%%",
+                                        help="Model probability floor for player-prop legs only (finder.market_rules.props)."))
+        prop_edge_pct = float(st.slider("Prop edge threshold", min_value=0.0, max_value=15.0,
+                                        value=float(min(15.0, max(0.0, round(cfg_prop_gap * 200) / 2))), step=0.5, format="%.1f%%",
+                                        help="P_true − P_implied for player-prop legs only."))
         edge_basis_label = st.radio("Measure the edge against", ["Book price (vig included)", "De-vigged fair price"], index=0)
         same_game = st.selectbox("Same-game legs", ["positive_only", "never", "any"], index=0,
                                  help="positive_only accepts only positively correlated pairs, e.g. Home ML + Home team total Over.")
@@ -452,13 +485,16 @@ with st.sidebar:
 # ===========================================================================
 
 min_gap, min_prob = min_edge_pct / 100.0, min_prob_pct / 100.0
+prop_gap, prop_prob = prop_edge_pct / 100.0, prop_prob_pct / 100.0
 wallet = float(st.session_state["wallet"])
 engine_error: Optional[str] = None
+by_market: Dict[str, Dict[str, Any]] = {}
 
 if BACKEND.live:
-    legs, tickets, rejected, data_source, engine_error = load_slate(week, min_gap, min_prob, edge_basis, same_game, sim_only)
+    legs, tickets, rejected, by_market, data_source, engine_error = load_slate(week, min_gap, min_prob, edge_basis, same_game,
+                                                                               sim_only, prop_prob, prop_gap)
     if engine_error:
-        legs, tickets, rejected, data_source = list(_DEMO_LEGS), _demo_tickets(_DEMO_LEGS, min_gap, min_prob), {}, "demo"
+        legs, tickets, rejected, by_market, data_source = list(_DEMO_LEGS), _demo_tickets(_DEMO_LEGS, min_gap, min_prob), {}, {}, "demo"
 else:
     legs, tickets, rejected, data_source = list(_DEMO_LEGS), _demo_tickets(_DEMO_LEGS, min_gap, min_prob), {}, "demo"
     legs = [l for l in legs if l["p_true"] - l["implied_prob"] >= min_gap and l["p_true"] >= min_prob]
@@ -505,7 +541,8 @@ with k2, st.container(border=True):
 with k3, st.container(border=True):
     st.metric("Filter status", "High Win-Rate" if high_win_mode else "Standard Edge",
               help="High Win-Rate Mode: leg floor of 65% or more and an edge threshold of 5 points or more.")
-    st.caption(f"{'Mode active' if high_win_mode else 'Mode'} · legs ≥ {min_prob_pct:.0f}% · edge ≥ {min_edge_pct:.1f} pts · 2 legs max")
+    st.caption(f"{'Mode active' if high_win_mode else 'Mode'} · legs ≥ {min_prob_pct:.0f}% · edge ≥ {min_edge_pct:.1f} pts · "
+               f"props ≥ {prop_prob_pct:.0f}% / {prop_edge_pct:.1f} pts · 2 legs max")
 
 # ===========================================================================
 # 9. Active Edge Signal Board
@@ -518,7 +555,8 @@ st.markdown('<div class="eb-sub">Individual +EV lines that clear the filters, be
 if legs:
     board = pd.DataFrame([{
         "Matchup": l["matchup"],
-        "Market": {"spread": "Spread", "total": "Total", "moneyline": "Moneyline", "team_total": "Team total"}.get(l.get("market", ""), str(l.get("market", "")).title()),
+        "Market": (l.get("market_label") or {"spread": "Spread", "total": "Total", "moneyline": "Moneyline", "team_total": "Team total"}.get(
+            l.get("market", ""), str(l.get("market", "")).title())) + (" (experimental)" if l.get("experimental") else ""),
         "Selected line": l["selection"],
         "Price": american(int(l["american_odds"])),
         "Model prob": float(l["p_true"]),
@@ -540,10 +578,29 @@ if legs:
                f"(your threshold plus {HIGH_EDGE_MARGIN * 100:.1f}). Edge here is P_true − P_implied, the gap the premium filter tests.")
 else:
     st.info("No line clears the current filters. Lower the minimum edge or the leg probability floor in the sidebar to see signals.")
-if rejected:
-    with st.expander("Why sides were rejected"):
-        rej = pd.DataFrame(sorted(rejected.items(), key=lambda kv: -kv[1]), columns=["Reason", "Sides"])
-        st.dataframe(rej, hide_index=True, **_wide_kwargs(st.dataframe))
+if by_market or rejected:
+    with st.expander("Legs clearing the filter by market, and why sides were rejected"):
+        if by_market:
+            rows = []
+            for m in by_market.values():
+                reasons = m.get("reasons") or {}
+                top = max(reasons.items(), key=lambda kv: kv[1]) if reasons else None
+                rows.append({
+                    "Market": m.get("label", "") + (" (experimental)" if m.get("experimental") else ""),
+                    "Sides": int(m.get("sides", 0)), "Pass": int(m.get("passed", 0)), "Blocked": int(m.get("blocked", 0)),
+                    "Floor": float(m.get("min_leg_prob", 0.0)), "Gap": float(m.get("min_prob_gap", 0.0)),
+                    "Best model prob": m.get("best_prob"), "Best gap": m.get("best_gap"),
+                    "Top reason": (f"{top[0]} ({top[1]})" if top else "all pass"),
+                })
+            frame_bm = pd.DataFrame(rows)
+            st.dataframe(frame_bm.style.format({"Floor": "{:.0%}", "Gap": "{:+.1%}", "Best model prob": "{:.1%}", "Best gap": "{:+.1%}"}, na_rep="n/a"),
+                         hide_index=True, **_wide_kwargs(st.dataframe))
+            st.caption("Floor and Gap are the thresholds in force per market (sidebar sliders; finder.market_rules in "
+                       "pipeline_config.json for the command-line pipeline). Best model prob and Best gap are the strongest "
+                       "unblocked side in each market, the hint for tuning.")
+        if rejected:
+            rej = pd.DataFrame(sorted(rejected.items(), key=lambda kv: -kv[1]), columns=["Reason", "Sides"])
+            st.dataframe(rej, hide_index=True, **_wide_kwargs(st.dataframe))
 
 # ===========================================================================
 # 10. Optimal Parlay Engine — 2-leg slips with live staking

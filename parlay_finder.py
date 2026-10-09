@@ -102,7 +102,8 @@ __all__ = [
     "simulate_season", "simulate_week_games", "sides_from_games",
     "parse_selection", "load_lines_csv", "load_model_probs_csv", "apply_model_probs",
     "parse_odds_api_response", "fetch_lines_from_odds_api", "fetch_odds_api_json",
-    "leg_passes", "explain_legs", "select_candidate_legs", "leg_correlation", "rank_score",
+    "leg_passes", "explain_legs", "explain_by_market", "format_market_table", "short_reason", "slate_summary",
+    "MarketRule", "ParlayList", "select_candidate_legs", "leg_correlation", "rank_score",
     "build_parlays", "find_parlays", "collect_sides", "load_finder_config",
     "resolve_data_path", "lines_file_has_week", "write_parlays_json", "nfl_season_year",
 ]
@@ -811,8 +812,19 @@ class FinderConfig:
     same_game_policy: str = DEFAULT_SAME_GAME_POLICY  # Rule 3: never | positive_only | any
     allow_same_game: Optional[bool] = None            # legacy alias: False -> never, True -> any
     markets: Tuple[str, ...] = ("game", "props")      # market keys, labels or aliases; wildcards game | props | all
+    market_rules: Dict[str, Dict[str, Any]] = field(default_factory=dict)  # per-market overrides of the rule-2 thresholds
     rank_by: str = "growth"
     auto_detect_lines: bool = True
+
+    def rule_for(self, market: str) -> "MarketRule":
+        """The rule-2 thresholds in force for ``market``: its market_rules entry, else the global values."""
+        o = self.market_rules.get(market, {})
+        reg = market_registry.registry()
+        extra = float(reg.model.get("high_variance_extra_gap", 0.0) or 0.0) if reg.high_variance(market) else 0.0
+        return MarketRule(min_leg_prob=float(o.get("min_leg_prob", self.min_leg_prob)),
+                          min_prob_gap=float(o.get("min_prob_gap", self.min_prob_gap)),
+                          max_leg_odds=int(o.get("max_leg_odds", self.max_leg_odds)),
+                          min_leg_edge=float(o.get("min_leg_edge", self.min_leg_edge)), extra_gap=extra)
 
     def __post_init__(self) -> None:
         self.source = (self.source or "sim").lower()
@@ -856,11 +868,82 @@ class FinderConfig:
             self.markets = market_registry.registry().expand_markets(tuple(str(m) for m in self.markets))
         except RegistryError as exc:
             raise FinderError(f"finder.markets: {exc}") from exc
+        self.market_rules = _normalize_market_rules(self.market_rules)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "FinderConfig":
         allowed = set(cls.__dataclass_fields__)  # type: ignore[attr-defined]
         return cls(**{k: v for k, v in data.items() if k in allowed and not k.startswith("_")})
+
+
+class MarketRule(NamedTuple):
+    """Rule-2 thresholds for one market. ``extra_gap`` is the surcharge high-variance markets pay."""
+
+    min_leg_prob: float
+    min_prob_gap: float
+    max_leg_odds: int
+    min_leg_edge: float
+    extra_gap: float = 0.0
+
+    @property
+    def required_gap(self) -> float:
+        return self.min_prob_gap + self.extra_gap
+
+
+_RULE_KEYS: Tuple[str, ...] = ("min_leg_prob", "min_prob_gap", "max_leg_odds", "min_leg_edge")
+
+
+def _normalize_market_rules(raw: Any) -> Dict[str, Dict[str, float]]:
+    """``finder.market_rules`` -> ``{canonical market: {setting: value}}``.
+
+    Keys may be market keys, labels, aliases or the wildcards ``props`` /
+    ``game`` / ``all``; an explicit market beats a wildcard. Unknown markets,
+    unknown settings and out-of-range values raise :class:`FinderError`.
+    """
+    if not raw:
+        return {}
+    if not isinstance(raw, dict):
+        raise FinderError("finder.market_rules must be an object keyed by market")
+    reg = market_registry.registry()
+    wildcard: Dict[str, Dict[str, float]] = {}
+    explicit: Dict[str, Dict[str, float]] = {}
+    for key, value in raw.items():
+        if str(key).startswith("_"):
+            continue
+        if not isinstance(value, dict):
+            raise FinderError(f"finder.market_rules.{key} must be an object such as {{\"min_leg_prob\": 0.6}}")
+        rule: Dict[str, float] = {}
+        for k, v in value.items():
+            if str(k).startswith("_"):
+                continue
+            if k not in _RULE_KEYS:
+                raise FinderError(f"finder.market_rules.{key}: unknown setting '{k}' (use {', '.join(_RULE_KEYS)})")
+            try:
+                rule[k] = float(v)
+            except (TypeError, ValueError) as exc:
+                raise FinderError(f"finder.market_rules.{key}.{k} must be a number, got {v!r}") from exc
+        if "min_leg_prob" in rule and not 0.0 <= rule["min_leg_prob"] < 1.0:
+            raise FinderError(f"finder.market_rules.{key}.min_leg_prob must be within [0, 1)")
+        if "min_prob_gap" in rule and not -1.0 < rule["min_prob_gap"] < 1.0:
+            raise FinderError(f"finder.market_rules.{key}.min_prob_gap must be a probability difference, e.g. 0.04")
+        if "max_leg_odds" in rule:
+            rule["max_leg_odds"] = float(int(rule["max_leg_odds"]))
+        text = str(key).strip().lower()
+        try:
+            if text in ("props", "game", "all"):
+                for m in reg.expand_markets([text]):
+                    wildcard[m] = {**wildcard.get(m, {}), **rule}
+            else:
+                m = reg.resolve(text)
+                if m is None:
+                    raise FinderError(f"finder.market_rules: unknown market '{key}' (known: {', '.join(reg.market_keys)})")
+                explicit[m] = {**explicit.get(m, {}), **rule}
+        except RegistryError as exc:
+            raise FinderError(f"finder.market_rules: {exc}") from exc
+    out = dict(wildcard)
+    for m, rule in explicit.items():
+        out[m] = {**out.get(m, {}), **rule}
+    return out
 
 
 def nfl_season_year(date: Optional[_dt.date] = None) -> int:
@@ -922,13 +1005,15 @@ def leg_passes(s: MarketSide, cfg: FinderConfig) -> Tuple[bool, str]:
         return False, "market not enabled"
     if s.blocked:
         return False, s.blocked
-    if s.american_odds > cfg.max_leg_odds:
-        return False, f"priced longer than +{cfg.max_leg_odds}"
-    if s.model_prob < cfg.min_leg_prob:
-        return False, f"model probability below {cfg.min_leg_prob:.0%}"
-    if s.prob_gap(cfg.edge_basis) < cfg.min_prob_gap:
-        return False, f"gap over {cfg.edge_basis} probability below {cfg.min_prob_gap:.0%}"
-    if s.edge <= cfg.min_leg_edge:
+    rule = cfg.rule_for(s.market)
+    if s.american_odds > rule.max_leg_odds:
+        return False, f"priced longer than +{rule.max_leg_odds}"
+    if s.model_prob < rule.min_leg_prob:
+        return False, f"model probability below {rule.min_leg_prob * 100:g}%"
+    if s.prob_gap(cfg.edge_basis) < rule.required_gap:
+        return False, (f"gap over {cfg.edge_basis} probability below {rule.required_gap * 100:g}%"
+                       + (" (high-variance market)" if rule.extra_gap else ""))
+    if s.edge <= rule.min_leg_edge:
         return False, "edge not positive"
     return True, ""
 
@@ -941,6 +1026,108 @@ def explain_legs(sides: Sequence[MarketSide], cfg: FinderConfig) -> Dict[str, in
         key = "passed" if ok else reason
         counts[key] = counts.get(key, 0) + 1
     return counts
+
+
+def short_reason(reason: str) -> str:
+    """Compact form of a leg_passes reason for tables."""
+    r = reason.lower()
+    if r.startswith("model probability below"):
+        return "below floor"
+    if r.startswith("gap over"):
+        return "gap too small"
+    if r.startswith("priced longer"):
+        return "price too long"
+    if r == "edge not positive":
+        return "no edge"
+    if r == "market not enabled":
+        return "market off"
+    return reason
+
+
+def explain_by_market(sides: Sequence[MarketSide], cfg: FinderConfig) -> Dict[str, Dict[str, Any]]:
+    """Per-market view of the rule-2 filter: how many sides, how many pass, under which thresholds, and why not.
+
+    Returns ``{market: {label, is_prop, experimental, sides, passed, blocked, min_leg_prob,
+    min_prob_gap, best_prob, best_gap, reasons}}`` in registry order (game markets first).
+    ``best_prob`` / ``best_gap`` are the strongest unblocked side's numbers, the hint for
+    tuning ``finder.market_rules``.
+    """
+    reg = market_registry.registry()
+    out: Dict[str, Dict[str, Any]] = {}
+    for s in sides:
+        row = out.get(s.market)
+        if row is None:
+            rule = cfg.rule_for(s.market)
+            row = out[s.market] = {
+                "market": s.market, "label": reg.label(s.market), "is_prop": reg.is_prop(s.market),
+                "experimental": reg.experimental(s.market), "enabled": s.market in cfg.markets,
+                "sides": 0, "passed": 0, "blocked": 0,
+                "min_leg_prob": rule.min_leg_prob, "min_prob_gap": rule.required_gap,
+                "best_prob": None, "best_gap": None, "reasons": {},
+            }
+        row["sides"] += 1
+        ok, reason = leg_passes(s, cfg)
+        if ok:
+            row["passed"] += 1
+        else:
+            row["reasons"][reason] = row["reasons"].get(reason, 0) + 1
+            if s.blocked:
+                row["blocked"] += 1
+        if not s.blocked:
+            gap = s.prob_gap(cfg.edge_basis)
+            row["best_prob"] = s.model_prob if row["best_prob"] is None else max(row["best_prob"], s.model_prob)
+            row["best_gap"] = gap if row["best_gap"] is None else max(row["best_gap"], gap)
+    order = {m: i for i, m in enumerate(reg.market_keys)}
+    return dict(sorted(out.items(), key=lambda kv: order.get(kv[0], 999)))
+
+
+def format_market_table(by_market: Dict[str, Dict[str, Any]], width: int = 80) -> List[str]:
+    """Render :func:`explain_by_market` as fixed-width text lines (fits an 80-column report)."""
+    if not by_market:
+        return ["  (no market sides this week)"]
+    mw, sw, pw, rw, bw, gw = 18, 5, 4, 7, 6, 8
+    reason_w = max(10, width - (2 + mw + 2 + sw + 2 + pw + 2 + rw + 2 + bw + 2 + gw + 2))
+
+    def fit(text: str, w: int) -> str:
+        text = str(text)
+        return text if len(text) <= w else text[: max(0, w - 3)] + "..."
+
+    lines = [f"  {'Market':<{mw}}  {'Sides':>{sw}}  {'Pass':>{pw}}  {'Rule':>{rw}}  {'Best P':>{bw}}  {'Best gap':>{gw}}  {'Top reason':<{reason_w}}".rstrip(),
+             f"  {'-' * mw}  {'-' * sw}  {'-' * pw}  {'-' * rw}  {'-' * bw}  {'-' * gw}  {'-' * reason_w}"]
+    for row in by_market.values():
+        name = row["label"] + ("*" if row.get("experimental") else "")
+        rule = f"{row['min_leg_prob'] * 100:g}/{row['min_prob_gap'] * 100:g}"
+        best_p = f"{row['best_prob'] * 100:.1f}%" if row.get("best_prob") is not None else "n/a"
+        best_g = f"{row['best_gap'] * 100:+.1f}pt" if row.get("best_gap") is not None else "n/a"
+        if row["passed"] == row["sides"]:
+            top = "all pass"
+        else:
+            reason, n = max(row["reasons"].items(), key=lambda kv: kv[1]) if row["reasons"] else ("", 0)
+            top = f"{short_reason(reason)} ({n})"
+        lines.append(f"  {fit(name, mw):<{mw}}  {row['sides']:>{sw}}  {row['passed']:>{pw}}  {rule:>{rw}}  {best_p:>{bw}}  {best_g:>{gw}}  {fit(top, reason_w)}".rstrip())
+    lines.append("  Rule = leg probability floor % / edge gap points, from finder.market_rules in")
+    lines.append("  pipeline_config.json (global min_leg_prob / min_prob_gap otherwise).")
+    lines.append("  * = experimental prop model.")
+    return lines
+
+
+class ParlayList(list):
+    """The finder's ticket list; ``slate_summary`` carries the per-market filter diagnostics."""
+
+    slate_summary: Optional[Dict[str, Any]] = None
+
+
+def slate_summary(sides: Sequence[MarketSide], cfg: FinderConfig, week: int) -> Dict[str, Any]:
+    """Diagnostics for the week's slate: side counts, legs passing per market and the thresholds used."""
+    by_market = explain_by_market(sides, cfg)
+    candidates = select_candidate_legs(sides, cfg)
+    return {
+        "week": week, "source": sides[0].source if sides else cfg.source, "sides": len(sides),
+        "passed": sum(r["passed"] for r in by_market.values()), "candidates": len(candidates),
+        "markets": len(by_market), "edge_basis": cfg.edge_basis,
+        "global_rule": {"min_leg_prob": cfg.min_leg_prob, "min_prob_gap": cfg.min_prob_gap},
+        "by_market": by_market, "table": format_market_table(by_market),
+    }
 
 
 def rank_score(p_true: float, decimal_odds: float, rank_by: str = "growth") -> float:
@@ -1158,7 +1345,8 @@ def find_parlays(week: int, top_n: Optional[int] = None, bankroll: Optional[floa
     except (TypeError, ValueError) as exc:
         raise FinderError(f"week must be an integer, got {week!r}") from exc
     sides = collect_sides(week, cfg, games)
-    tickets = build_parlays(sides, week, cfg)
+    tickets = ParlayList(build_parlays(sides, week, cfg))
+    tickets.slate_summary = slate_summary(sides, cfg, week)
     if tickets:
         logger.info("Week %d: %d market sides -> %d ticket(s) [%s]", week, len(sides), len(tickets), cfg.source)
     else:
@@ -1234,6 +1422,34 @@ def _selftest() -> int:
         check(False, "unknown market in config raises")
     except FinderError:
         check(True, "unknown market in config raises FinderError")
+
+    # Per-market thresholds (finder.market_rules): explicit beats wildcard, aliases resolve, validation
+    mr = FinderConfig(market_rules={"props": {"min_leg_prob": 0.55, "min_prob_gap": 0.04}, "Receptions": {"min_leg_prob": 0.6},
+                                    "_comment": "ignored"})
+    check(mr.rule_for("passing_yards") == MarketRule(0.55, 0.04, 300, 0.0, 0.0), "props wildcard sets every prop market")
+    check(mr.rule_for("receptions").min_leg_prob == 0.6 and mr.rule_for("receptions").min_prob_gap == 0.04, "explicit market beats the wildcard per setting")
+    check(mr.rule_for("spread") == MarketRule(0.68, 0.06, 300, 0.0, 0.0), "game markets keep the global rule")
+    check(mr.rule_for("first_td").extra_gap > 0 and mr.rule_for("first_td").required_gap > 0.04, "high-variance market pays an extra gap")
+    check(FinderConfig.from_dict(asdict(mr)).rule_for("receptions") == mr.rule_for("receptions"), "market_rules survive an asdict round trip")
+    for bad_rules, why in (({"nope": {"min_leg_prob": 0.5}}, "unknown market"), ({"props": {"floor": 0.5}}, "unknown setting"),
+                           ({"props": {"min_leg_prob": 1.2}}, "out-of-range floor"), ({"props": "0.5"}, "non-object rule")):
+        try:
+            FinderConfig(market_rules=bad_rules)
+            check(False, f"market_rules {why} rejected")
+        except FinderError:
+            check(True, f"market_rules {why} rejected")
+    loose_prop = MarketSide(**{**asdict(prop_side), "model_prob": 0.60, "fair_prob": 0.50})
+    loose_game = MarketSide(**{**asdict(game_side), "model_prob": 0.60, "fair_prob": 0.50})
+    check(leg_passes(loose_prop, mr)[0] and not leg_passes(loose_game, mr)[0] and "68%" in leg_passes(loose_game, mr)[1],
+          "a 60% prop passes its 55% rule while a 60% spread fails the 68% global rule")
+    bm = explain_by_market([loose_prop, loose_game, blocked_side, prop_side2], mr)
+    check(list(bm) == ["spread", "receiving_yards"] and bm["receiving_yards"]["sides"] == 3 and bm["receiving_yards"]["passed"] == 2
+          and bm["receiving_yards"]["blocked"] == 1 and bm["spread"]["passed"] == 0 and bm["receiving_yards"]["min_leg_prob"] == 0.55,
+          "explain_by_market counts sides, passes and blocks per market in registry order")
+    check(abs(bm["receiving_yards"]["best_prob"] - 0.6) < 1e-9 and bm["spread"]["best_gap"] is not None, "best prob / gap recorded from unblocked sides")
+    table = format_market_table(bm)
+    check(all(len(line) <= 80 for line in table) and any("Receiving Yards*" in line for line in table) and any("below floor (1)" in line for line in table),
+          "market table fits 80 columns, flags experimental markets and names the top reason")
 
     # Simulation
     g1 = simulate_week_games(2026, 6, seed=7)
@@ -1346,6 +1562,9 @@ def _selftest() -> int:
         check(abs(det.model_prob - det.fair_prob) < 1e-12, "blank model_prob -> de-vigged fair prob")
         t_csv = find_parlays(6, config=FinderConfig(source="csv", lines_csv=path, top_n=10))
         check(len(t_csv) >= 1 and all(t["source"] == "csv" for t in t_csv), f"CSV source builds strict tickets ({len(t_csv)})")
+        summ = getattr(t_csv, "slate_summary", None)
+        check(isinstance(summ, dict) and summ["sides"] == 10 and set(summ["by_market"]) == {"moneyline", "team_total", "spread"}
+              and summ["by_market"]["moneyline"]["passed"] >= 1 and isinstance(summ["table"], list), "find_parlays attaches a per-market slate summary")
         sels = {tuple(sorted(l["selection"] for l in t["legs"])) for t in t_csv}
         check(("Buffalo Bills ML", "Buffalo Bills Over 23.5") in sels, "Home ML + Home team total Over accepted (positive)")
         check(("Buffalo Bills ML", "Kansas City Chiefs Over 20.5") not in sels, "Home ML + Away team total Over rejected (negative)")
@@ -1461,7 +1680,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--min-prob-gap", type=float, dest="min_prob_gap", default=None, help="Rule 2 gap (default 0.06)")
     p.add_argument("--edge-basis", choices=("implied", "fair"), dest="edge_basis", default=None)
     p.add_argument("--same-game", choices=("never", "positive_only", "any"), dest="same_game_policy", default=None)
-    p.add_argument("--explain", action="store_true", help="Show why sides were rejected")
+    p.add_argument("--prop-floor", type=float, dest="prop_floor", default=None, help="Rule 2 floor for every player-prop market (e.g. 0.55)")
+    p.add_argument("--prop-gap", type=float, dest="prop_gap", default=None, help="Rule 2 gap for every player-prop market (e.g. 0.04)")
+    p.add_argument("--explain", action="store_true", help="Show legs passing per market and why sides were rejected")
     p.add_argument("--out", default=None, help="Write tickets to this JSON file")
     p.add_argument("--quiet", action="store_true")
     p.add_argument("--selftest", action="store_true")
@@ -1496,16 +1717,27 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(f"No --week given; using upcoming week {week}.")
     try:
         cfg = load_finder_config()
-        if overrides or args.top_n is not None:
+        prop_rule = {k: v for k, v in (("min_leg_prob", args.prop_floor), ("min_prob_gap", args.prop_gap)) if v is not None}
+        if overrides or args.top_n is not None or prop_rule:
             data = {**asdict(cfg), **overrides, **({"top_n": args.top_n} if args.top_n is not None else {})}
             data["sim"] = cfg.sim
+            if prop_rule:
+                data["market_rules"] = {**cfg.market_rules, "props": {**{k: v for k, v in cfg.market_rules.get("props", {}).items()}, **prop_rule}}
+                # an explicit CLI prop rule must beat any per-market entries from the config file
+                data["market_rules"] = {k: v for k, v in data["market_rules"].items() if not market_registry.registry().is_prop(k)}
+                data["market_rules"]["props"] = prop_rule
             cfg = FinderConfig.from_dict(data)
-        if args.explain:
-            sides = collect_sides(week, cfg)
-            print(f"Week {week}: {len(sides)} market sides")
-            for reason, n in sorted(explain_legs(sides, cfg).items(), key=lambda kv: -kv[1]):
-                print(f"  {n:>4}  {reason}")
         tickets = find_parlays(week, config=cfg)
+        if args.explain and tickets.slate_summary:
+            summ = tickets.slate_summary
+            print(f"Week {week}: {summ['sides']} market sides across {summ['markets']} market(s); "
+                  f"{summ['passed']} side(s) clear the filter, {summ['candidates']} candidate leg(s) after de-duplication")
+            print("LEGS CLEARING THE FILTER BY MARKET")
+            for line in summ["table"]:
+                print(line)
+            print("REASONS (all markets)")
+            for reason, n in sorted((kv for kv in explain_legs(collect_sides(week, cfg), cfg).items() if kv[0] != "passed"), key=lambda kv: -kv[1]):
+                print(f"  {n:>4}  {reason}")
         if args.out:
             print(f"Wrote {len(tickets)} ticket(s) to {write_parlays_json(tickets, args.out, week)}")
     except (FinderError, StakingInputError) as exc:

@@ -42,6 +42,13 @@
       "game",
       "props"
     ],
+    "market_rules": {
+      "_comment": "Per-market overrides of min_leg_prob / min_prob_gap / max_leg_odds / min_leg_edge. Keys are market keys, labels or aliases from markets.json, or the wildcards props / game; an explicit market beats a wildcard and anything not listed uses the global values above. Most over/under player props are priced near 50%, so the 68% floor will rarely let a prop through: tune these from the LEGS CLEARING THE FILTER BY MARKET table in the weekly report (or the dashboard's prop sliders).",
+      "props": {
+        "min_leg_prob": 0.68,
+        "min_prob_gap": 0.06
+      }
+    },
     "rank_by": "growth",
     "auto_detect_lines": true,
     "sim": {
