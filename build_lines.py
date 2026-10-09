@@ -67,11 +67,12 @@ from __future__ import annotations
 
 import argparse
 import csv
+import datetime as _dt
 import logging
 import math
 import os
 import sys
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import market_registry
 from market_registry import RegistryError, format_prop_selection
@@ -321,13 +322,57 @@ def model_prop_rows(prop_rows: List[Dict[str, Any]], inputs_path: str, week: Opt
     return counts
 
 
+LOG_FILENAME = "lines_log.csv"
+LOG_COLUMNS = ("logged_at", "week", "away", "home", "player", "market", "selection", "american_odds", "model_prob", "blocked", "notes")
+
+
+def log_prop_lines(prop_rows: List[Dict[str, Any]], log_path: str, now: Optional[str] = None) -> int:
+    """Append each prop side to a timestamped log unless its price and model probability are unchanged.
+
+    The log is the pipeline's own history of the lines you entered (no paid
+    data): it records a new row whenever a line's price or the model's
+    probability moves, so later weeks can be checked against what was
+    actually offered and when. Returns the number of rows appended.
+    """
+    if not prop_rows:
+        return 0
+    now = now or _dt.datetime.now().isoformat(timespec="seconds")
+    latest: Dict[Tuple[str, str, str, str], Tuple[str, str]] = {}
+    if os.path.isfile(log_path):
+        with open(log_path, newline="", encoding="utf-8") as fh:
+            for r in csv.DictReader(fh):
+                key = (str(r.get("week", "")), r.get("away", ""), r.get("home", ""), r.get("selection", ""))
+                latest[key] = (str(r.get("american_odds", "")), str(r.get("model_prob", "")))
+    new_rows: List[Dict[str, Any]] = []
+    for r in prop_rows:
+        key = (str(r["week"]), r["away"], r["home"], r["selection"])
+        state = (str(r["american_odds"]), str(r.get("model_prob", "")))
+        if latest.get(key) == state:
+            continue
+        latest[key] = state
+        new_rows.append({"logged_at": now, "week": r["week"], "away": r["away"], "home": r["home"], "player": r.get("player", ""),
+                         "market": r["market"], "selection": r["selection"], "american_odds": r["american_odds"],
+                         "model_prob": r.get("model_prob", ""), "blocked": r.get("blocked", ""), "notes": r.get("notes", "")})
+    if new_rows:
+        write_header = not os.path.isfile(log_path) or os.path.getsize(log_path) == 0
+        with open(log_path, "a", newline="", encoding="utf-8") as fh:
+            writer = csv.DictWriter(fh, fieldnames=list(LOG_COLUMNS), restval="")
+            if write_header:
+                writer.writeheader()
+            writer.writerows(new_rows)
+    return len(new_rows)
+
+
 def build_lines_csv(inputs_path: str = INPUTS_FILENAME, out_path: str = LINES_FILENAME, week: Optional[int] = None,
-                    props_path: Optional[str] = None, include_props: bool = True, model_props: bool = True) -> str:
+                    props_path: Optional[str] = None, include_props: bool = True, model_props: bool = True,
+                    log_path: Optional[str] = None, log_props: bool = True) -> str:
     """week_inputs.csv (+ props_inputs.csv beside it, or ``props_path``) -> lines.csv.
 
     Prop rows get their ``model_prob`` from ``prop_model.py`` unless
     ``model_props`` is False (or the model cannot run, in which case they are
-    written with a ``blocked`` reason and no edge).
+    written with a ``blocked`` reason and no edge). Every prop side is also
+    appended to ``lines_log.csv`` beside the props file (``log_path``) whenever
+    its price or probability changed, timestamped.
     """
     rows = build_lines_rows(inputs_path, week)
     games = {(r["week"], r["away"], r["home"]) for r in rows}
@@ -346,6 +391,14 @@ def build_lines_csv(inputs_path: str = INPUTS_FILENAME, out_path: str = LINES_FI
                                           f"team names must match that file exactly")
             if model_props and prop_rows:
                 model_counts = model_prop_rows(prop_rows, inputs_path, week)
+            if log_props and prop_rows:
+                log_file = log_path or os.path.join(os.path.dirname(os.path.abspath(props_path)), LOG_FILENAME)
+                try:
+                    appended = log_prop_lines(prop_rows, log_file)
+                    if appended:
+                        logger.info("Logged %d new/changed prop side(s) to %s", appended, log_file)
+                except OSError as exc:
+                    logger.warning("Could not write %s: %s", log_file, exc)
             rows.extend(prop_rows)
             n_props = len(prop_rows)
     abs_out = os.path.abspath(out_path)
@@ -472,6 +525,33 @@ def _selftest() -> int:
         out2 = build_lines_csv(inp, os.path.join(tmp, "lines2.csv"), include_props=False)
         with open(out2, newline="", encoding="utf-8") as fh:
             check(len(list(csv.DictReader(fh))) == 6, "include_props=False skips the props file")
+        # The timestamped prop line log: one row per side, re-runs add nothing, a moved price adds rows
+        log_file = os.path.join(tmp, LOG_FILENAME)
+        with open(log_file, newline="", encoding="utf-8") as fh:
+            logged = list(csv.DictReader(fh))
+        check(len(logged) == 3 and set(logged[0].keys()) == set(LOG_COLUMNS) and logged[0]["logged_at"] and logged[0]["selection"].startswith("Dak Prescott"),
+              "prop sides are logged with a timestamp on the first build")
+        build_lines_csv(inp, os.path.join(tmp, "lines.csv"))
+        with open(log_file, newline="", encoding="utf-8") as fh:
+            check(len(list(csv.DictReader(fh))) == 3, "an unchanged rebuild appends nothing to the log")
+        with open(props, "w", newline="", encoding="utf-8") as fh:
+            w = csv.DictWriter(fh, fieldnames=fields, restval="")
+            w.writeheader()
+            w.writerow({**prow, "over_price": "-125"})
+            w.writerow(trow)
+        build_lines_csv(inp, os.path.join(tmp, "lines.csv"))
+        with open(log_file, newline="", encoding="utf-8") as fh:
+            logged = list(csv.DictReader(fh))
+        check(len(logged) == 4 and logged[-1]["american_odds"] == "-125" and logged[-1]["selection"].startswith("Dak Prescott Over"),
+              "a moved price appends only the side that changed")
+        with open(props, "w", newline="", encoding="utf-8") as fh:
+            w = csv.DictWriter(fh, fieldnames=fields, restval="")
+            w.writeheader()
+            w.writerow(prow)
+            w.writerow(trow)
+        build_lines_csv(inp, os.path.join(tmp, "lines4.csv"), log_props=False)
+        with open(log_file, newline="", encoding="utf-8") as fh:
+            check(len(list(csv.DictReader(fh))) == 4, "log_props=False leaves the log alone")
         with open(props, "a", newline="", encoding="utf-8") as fh:
             w = csv.DictWriter(fh, fieldnames=fields, restval="")
             w.writerow({**prow, "home": "Nowhere Team"})
@@ -490,6 +570,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p.add_argument("--inputs", default=INPUTS_FILENAME)
     p.add_argument("--props", default=None, help=f"Player props CSV (default: {PROPS_FILENAME} beside --inputs when it exists)")
     p.add_argument("--no-props", action="store_true", dest="no_props", help="Ignore props_inputs.csv")
+    p.add_argument("--no-model", action="store_true", dest="no_model", help="Do not run the prop model (props carry no edge)")
+    p.add_argument("--no-log", action="store_true", dest="no_log", help=f"Do not append prop lines to {LOG_FILENAME}")
     p.add_argument("--out", default=LINES_FILENAME)
     p.add_argument("--week", type=int, default=None, help="Only this week (default: all weeks in the file)")
     p.add_argument("--selftest", action="store_true")
@@ -498,7 +580,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.selftest:
         return _selftest()
     try:
-        out = build_lines_csv(args.inputs, args.out, args.week, props_path=args.props, include_props=not args.no_props)
+        out = build_lines_csv(args.inputs, args.out, args.week, props_path=args.props, include_props=not args.no_props,
+                              model_props=not args.no_model, log_props=not args.no_log)
     except BuildLinesError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
