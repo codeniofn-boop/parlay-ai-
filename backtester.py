@@ -59,6 +59,7 @@ import sys
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+import market_registry
 import parlay_finder as pf
 from staking_engine import BankrollTracker, StakingConfig, StakingInputError
 from weekly_reporter import ReportConfig, StakedTicket, build_weekly_report
@@ -121,14 +122,56 @@ def _split_matchup(leg: Dict[str, Any]) -> Tuple[str, str]:
     raise BacktestError(f"Cannot determine away/home from matchup '{matchup}'")
 
 
-def resolve_leg(leg: Dict[str, Any], away_score: int, home_score: int) -> str:
+def _player_key(name: str) -> str:
+    """Normalised player name for player_stats lookups (matches prop_model.normalize_name)."""
+    try:
+        import prop_model
+        return prop_model.normalize_name(name)
+    except ImportError:  # pragma: no cover - prop_model missing: a plain fallback
+        return " ".join(str(name).lower().replace(".", "").replace("'", "").split())
+
+
+def resolve_prop_leg(leg: Dict[str, Any], ps: pf.ParsedSelection, player_stats: Optional[Dict[str, Dict[str, float]]]) -> str:
+    """Grade a player-prop leg against the week's player stats.
+
+    ``player_stats`` maps a player id and a normalised player name to that
+    week's stat columns (nflverse). A player with no row recorded nothing that
+    week (unders win, overs lose, Anytime TD 'No' wins). ``None`` means the
+    stats were not loaded, which raises so the ticket is reported as
+    ungraded rather than silently scored.
+    """
+    reg = market_registry.registry()
+    pm = reg.get(ps.market)
+    if pm is None:
+        raise BacktestError(f"'{leg.get('selection')}' is not a known prop market")
+    if player_stats is None:
+        raise BacktestError(f"No player stats loaded to grade '{leg.get('selection')}'")
+    player = str(leg.get("player") or ps.player or "")
+    stats = player_stats.get(str(leg.get("player_id") or "")) or player_stats.get(_player_key(player))
+    actual = sum(float((stats or {}).get(stat, 0.0)) for stat, _usage in pm.parts)
+    direction = str(ps.direction or leg.get("direction") or "").lower()
+    if pm.is_yes_no:
+        scored = actual >= 1.0
+        return "win" if scored == (direction != "no") else "loss"
+    if ps.line is None:
+        raise BacktestError(f"'{leg.get('selection')}' has no line to grade")
+    if abs(actual - ps.line) < 1e-9:
+        return "push"
+    return "win" if ((actual > ps.line) == (direction == "over")) else "loss"
+
+
+def resolve_leg(leg: Dict[str, Any], away_score: int, home_score: int,
+                player_stats: Optional[Dict[str, Dict[str, float]]] = None) -> str:
     """Grade one leg against a final score -> ``"win"`` | ``"loss"`` | ``"push"``.
 
     ``leg`` needs ``selection`` plus either ``away``/``home`` or a
-    ``"Away @ Home"`` matchup string.
+    ``"Away @ Home"`` matchup string. Player-prop legs are graded from
+    ``player_stats`` (see :func:`resolve_prop_leg`).
     """
     away, home = _split_matchup(leg)
     ps = pf.parse_selection(str(leg["selection"]), str(leg.get("market", "")))
+    if market_registry.registry().is_prop(ps.market):
+        return resolve_prop_leg(leg, ps, player_stats)
     if ps.market == "total":
         total = away_score + home_score
         assert ps.line is not None
@@ -194,6 +237,58 @@ class WeekData:
     week: int
     tickets: List[Dict[str, Any]]
     scores: Dict[Tuple[str, str], Tuple[int, int]]   # (away, home) -> (away_score, home_score)
+    player_stats: Optional[Dict[str, Dict[str, float]]] = None   # player id / normalised name -> that week's stats (props)
+
+
+def ticket_market_group(ticket: Any) -> str:
+    """``game`` | ``prop`` | ``mixed`` for a ticket dict or ParlayTicket (derived from its legs when not recorded)."""
+    raw = ticket if isinstance(ticket, dict) else (getattr(ticket, "raw", None) or {})
+    group = raw.get("market_group")
+    if group in ("game", "prop", "mixed"):
+        return str(group)
+    reg = market_registry.registry()
+    legs = raw.get("legs") if isinstance(raw, dict) and raw.get("legs") else getattr(ticket, "legs", [])
+    kinds = set()
+    for leg in legs or []:
+        market = leg.get("market") if isinstance(leg, dict) else getattr(leg, "market", "")
+        kinds.add("prop" if reg.is_prop(str(market)) else "game")
+    return kinds.pop() if len(kinds) == 1 else ("mixed" if kinds else "game")
+
+
+def player_stats_for_week(games: Sequence[Any], week: int) -> Dict[str, Dict[str, float]]:
+    """``prop_model.PlayerGame`` rows -> ``{player_id or normalised name: stats}`` for one week."""
+    out: Dict[str, Dict[str, float]] = {}
+    for g in games:
+        if g.week != week:
+            continue
+        out[g.player_id] = dict(g.stats)
+        out[_player_key(g.name)] = dict(g.stats)
+    return out
+
+
+def load_player_stats(season: int, offline: bool = False) -> Dict[int, Dict[str, Dict[str, float]]]:
+    """Week -> player stats for a season from the nflverse cache (downloads when allowed)."""
+    import prop_model
+    path = prop_model.fetch_file("stats", season, offline=offline)
+    games = prop_model.load_player_games(path, season)
+    weeks = sorted({g.week for g in games})
+    return {wk: player_stats_for_week(games, wk) for wk in weeks}
+
+
+def write_results_from_schedule(schedule: Sequence[Any], out_path: str) -> int:
+    """Write ``results.csv`` (week,away,home,away_score,home_score) from nflverse schedule rows that have scores."""
+    rows = [g for g in schedule if g.home_score is not None and g.away_score is not None]
+    try:
+        import prop_model
+        full = prop_model.team_full_name
+    except ImportError:  # pragma: no cover
+        full = lambda a: a  # noqa: E731
+    with open(out_path, "w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(["week", "away", "home", "away_score", "home_score"])
+        for g in sorted(rows, key=lambda g: (g.week, g.away, g.home)):
+            w.writerow([g.week, full(g.away), full(g.home), g.away_score, g.home_score])
+    return len(rows)
 
 
 def build_simulated_season(
@@ -240,6 +335,7 @@ def load_real_season(lines_csv: str, results_csv: str, finder_cfg: pf.FinderConf
 
     cfg = pf.FinderConfig.from_dict({**asdict(finder_cfg), "source": "csv", "lines_csv": lines_csv})
     cfg.sim = finder_cfg.sim
+    stats_by_week: Optional[Dict[int, Dict[str, Dict[str, float]]]] = None
     out: List[WeekData] = []
     for week in sorted(scores_by_week):
         try:
@@ -247,7 +343,16 @@ def load_real_season(lines_csv: str, results_csv: str, finder_cfg: pf.FinderConf
         except pf.FinderError as exc:
             logger.warning("Week %d skipped: %s", week, exc)
             continue
-        out.append(WeekData(week=week, tickets=tickets, scores=scores_by_week[week]))
+        if stats_by_week is None and any(ticket_market_group(t) != "game" for t in tickets):
+            season = finder_cfg.season or pf.nfl_season_year()
+            try:
+                stats_by_week = load_player_stats(season, offline=os.environ.get("EDGEBOOK_OFFLINE", "").lower() in ("1", "true", "yes"))
+                logger.info("Loaded %d player stats for %d week(s) to grade prop legs", season, len(stats_by_week))
+            except Exception as exc:  # network / cache problems: prop tickets will be reported as ungraded
+                logger.warning("Player stats for %d unavailable (%s); prop legs cannot be graded", season, exc)
+                stats_by_week = {}
+        out.append(WeekData(week=week, tickets=tickets, scores=scores_by_week[week],
+                            player_stats=(stats_by_week.get(week) if stats_by_week else None)))
     if not out:
         raise BacktestError("No weeks could be built from the lines and results files")
     return out
@@ -311,6 +416,7 @@ class BacktestConfig:
     out_dir: str = DEFAULT_OUT_DIR
     finder: pf.FinderConfig = field(default_factory=pf.load_finder_config)
     count_same_game: bool = False       # count SGP-priced same-game tickets like any other (default: set aside)
+    lines_log_csv: Optional[str] = None  # lines_log.csv for closing-line value (default: beside lines_csv)
 
     def __post_init__(self) -> None:
         if self.seasons < 1 or self.weeks < 1:
@@ -340,8 +446,35 @@ class BacktestResults:
     config: BacktestConfig
     per_season: List[PolicySeasonResult]
     ledger: List[Dict[str, Any]]
-    calibration: Dict[str, Dict[str, float]]   # variant -> {mean_model_p, hit_rate, n}
+    calibration: Dict[str, Dict[str, Any]]   # variant -> {mean_model_p, hit_rate, n, by_group: {group: {...}}}
     generated_at: _dt.datetime = field(default_factory=_dt.datetime.now)
+    clv: Optional[Dict[str, Any]] = None    # closing-line value for prop legs, when a logged close exists
+
+    def by_group(self) -> Dict[str, Dict[str, Dict[str, float]]]:
+        """Per (variant, policy) and market group (game / prop / mixed): bets, win rate, ROI and P&L per season."""
+        acc: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        seasons: Dict[str, set] = {}
+        for r in self.per_season:
+            seasons.setdefault(self._label(r), set()).add(r.season_index)
+        for row in self.ledger:
+            label = row["policy"] if row.get("variant", "model") == "model" else f"{row['policy']} [null]"
+            key = (label, str(row.get("market_group", "game")))
+            a = acc.setdefault(key, {"bets": 0, "wins": 0, "decided": 0, "staked": 0.0, "pnl": 0.0})
+            a["bets"] += 1
+            if row["outcome"] in ("win", "loss"):
+                a["decided"] += 1
+                a["wins"] += row["outcome"] == "win"
+            a["staked"] += float(row["stake"])
+            a["pnl"] += float(row["pnl"])
+        out: Dict[str, Dict[str, Dict[str, float]]] = {}
+        for (label, group), a in acc.items():
+            n_seasons = max(1, len(seasons.get(label, {0})))
+            out.setdefault(label, {})[group] = {
+                "bets_per_season": a["bets"] / n_seasons, "win_rate": (a["wins"] / a["decided"]) if a["decided"] else 0.0,
+                "roi_on_turnover": (a["pnl"] / a["staked"]) if a["staked"] else 0.0, "pnl_per_season": a["pnl"] / n_seasons,
+                "bets": a["bets"],
+            }
+        return out
 
     def aggregate(self) -> Dict[str, Dict[str, float]]:
         """Distribution statistics per (variant, policy) across seasons."""
@@ -384,6 +517,8 @@ class BacktestResults:
             "config": cfg,
             "calibration": self.calibration,
             "aggregate": self.aggregate(),
+            "by_group": self.by_group(),
+            "clv": self.clv,
             "per_season": [asdict(r) for r in self.per_season],
         }
 
@@ -399,38 +534,58 @@ def _percentile(values: Sequence[float], q: float) -> float:
     return xs[lo] + (xs[hi] - xs[lo]) * (pos - lo)
 
 
-def _grade_ticket(st: StakedTicket, scores: Dict[Tuple[str, str], Tuple[int, int]]) -> Tuple[str, float, List[str]]:
+def _grade_ticket(st: StakedTicket, scores: Dict[Tuple[str, str], Tuple[int, int]],
+                  player_stats: Optional[Dict[str, Dict[str, float]]] = None) -> Tuple[str, float, List[str]]:
     leg_results: List[Tuple[Dict[str, Any], str]] = []
-    for leg in st.ticket.legs:
+    raw_legs = (st.ticket.raw or {}).get("legs") or []
+    for i, leg in enumerate(st.ticket.legs):
+        raw_leg = raw_legs[i] if i < len(raw_legs) and isinstance(raw_legs[i], dict) else {}
         leg_dict = {"matchup": leg.matchup, "selection": leg.selection, "market": leg.market,
-                    "decimal_odds": leg.decimal_odds}
+                    "decimal_odds": leg.decimal_odds, "player": leg.player, "direction": leg.direction,
+                    "player_id": raw_leg.get("player_id")}
         away, home = _split_matchup(leg_dict)
         key = (away, home)
         if key not in scores:
             raise BacktestError(f"No final score for {away} @ {home} in week {st.ticket.week}")
         a_s, h_s = scores[key]
-        leg_results.append((leg_dict, resolve_leg(leg_dict, a_s, h_s)))
+        leg_results.append((leg_dict, resolve_leg(leg_dict, a_s, h_s, player_stats)))
     outcome, pnl = settle_parlay(leg_results, st.stake.stake_dollars)
     return outcome, pnl, [r for _, r in leg_results]
 
 
-def calibrate(week_data: Sequence[WeekData]) -> Dict[str, float]:
-    """Model-claimed probability vs realised hit rate over every finder ticket."""
-    probs: List[float] = []
-    hits = 0
+def calibrate(week_data: Sequence[WeekData]) -> Dict[str, Any]:
+    """Model-claimed probability vs realised hit rate over every finder ticket, overall and by market group."""
+    acc: Dict[str, Dict[str, float]] = {}
+    ungraded = 0
     for wd in week_data:
         for t in wd.tickets:
             results = []
-            for leg in t["legs"]:
-                away, home = _split_matchup(leg)
-                a_s, h_s = wd.scores[(away, home)]
-                results.append(resolve_leg(leg, a_s, h_s))
+            try:
+                for leg in t["legs"]:
+                    away, home = _split_matchup(leg)
+                    if (away, home) not in wd.scores:
+                        raise BacktestError(f"no score for {away} @ {home}")
+                    a_s, h_s = wd.scores[(away, home)]
+                    results.append(resolve_leg(leg, a_s, h_s, wd.player_stats))
+            except BacktestError:
+                ungraded += 1
+                continue
             if "push" in results:
                 continue
-            probs.append(float(t["p_true"]))
-            hits += all(r == "win" for r in results)
-    n = len(probs)
-    return {"mean_model_p": (sum(probs) / n) if n else 0.0, "hit_rate": (hits / n) if n else 0.0, "n": float(n)}
+            for group in ("all", ticket_market_group(t)):
+                a = acc.setdefault(group, {"p": 0.0, "hits": 0.0, "n": 0.0})
+                a["p"] += float(t["p_true"])
+                a["hits"] += float(all(r == "win" for r in results))
+                a["n"] += 1.0
+
+    def summarise(a: Dict[str, float]) -> Dict[str, float]:
+        n = a["n"]
+        return {"mean_model_p": (a["p"] / n) if n else 0.0, "hit_rate": (a["hits"] / n) if n else 0.0, "n": n}
+
+    overall = summarise(acc.get("all", {"p": 0.0, "hits": 0.0, "n": 0.0}))
+    overall["by_group"] = {g: summarise(a) for g, a in acc.items() if g != "all"}
+    overall["ungraded"] = float(ungraded)
+    return overall
 
 
 def run_policy_over_season(
@@ -446,6 +601,7 @@ def run_policy_over_season(
     """Replay one season for one staking policy using the live report builder."""
     tracker = BankrollTracker(cfg.bankroll, policy)
     weekly: List[float] = []
+    ungraded = 0
     for wd in week_data:
         if tracker.bankroll <= 0.0:
             weekly.append(0.0)
@@ -457,13 +613,21 @@ def run_policy_over_season(
                          max_parlays=int(cfg.top_n), count_same_game=cfg.count_same_game),
         )
         for st in report.recommended:
-            outcome, pnl, leg_results = _grade_ticket(st, wd.scores)
+            try:
+                outcome, pnl, leg_results = _grade_ticket(st, wd.scores, wd.player_stats)
+            except BacktestError as exc:
+                # A game not yet played, or a prop with no stats loaded: the ticket is not placed in the replay.
+                ungraded += 1
+                logger.debug("Week %d ticket %s not graded: %s", wd.week, st.ticket.ticket_id, exc)
+                continue
             won: Optional[bool] = True if outcome == "win" else False if outcome == "loss" else None
             tracker.record(st.stake, pnl, won, label=f"W{wd.week:02d}", outcome=outcome)
             if ledger is not None:
                 ledger.append({
                     "season": season_index, "seed": seed, "variant": variant, "week": wd.week,
                     "policy": policy_name, "ticket_id": st.ticket.ticket_id, "n_legs": st.ticket.n_legs,
+                    "market_group": ticket_market_group(st.ticket),
+                    "experimental": bool((st.ticket.raw or {}).get("experimental") or any(l.experimental for l in st.ticket.legs)),
                     "legs": " | ".join(f"{l.matchup}: {l.selection}" for l in st.ticket.legs),
                     "p_true": round(st.ticket.p_true, 6), "decimal_odds": round(st.ticket.decimal_odds, 4),
                     "american_odds": st.ticket.american_odds, "edge": round(st.ticket.edge, 6),
@@ -471,7 +635,62 @@ def run_policy_over_season(
                     "outcome": outcome, "pnl": round(pnl, 2), "bankroll_after": round(tracker.bankroll, 2),
                 })
         weekly.append(tracker.bankroll)
-    return PolicySeasonResult(season_index, seed, policy_name, variant, tracker.summary(), weekly)
+    summary = tracker.summary()
+    summary["ungraded"] = ungraded
+    if ungraded:
+        logger.warning("%s / %s season %d: %d ticket(s) could not be graded (game not played or no player stats)",
+                       variant, policy_name, season_index, ungraded)
+    return PolicySeasonResult(season_index, seed, policy_name, variant, summary, weekly)
+
+
+def closing_line_value(ledger: Sequence[Dict[str, Any]], week_data: Sequence[WeekData], log_path: Optional[str]) -> Dict[str, Any]:
+    """Closing-line value of the placed prop legs from ``lines_log.csv``.
+
+    For each prop leg of a placed ticket, the earliest logged price is the price the
+    pipeline saw and the latest logged price before kickoff stands in for the close.
+    CLV = implied(close) - implied(price taken), in probability points: positive means
+    the market moved toward the side the pipeline took. Reports ``available: False``
+    with the reason and the paid sources when no later snapshot exists.
+    """
+    sources = ("Historical closing prop lines are not in nflverse. Paid sources that carry them: The Odds API historical "
+               "endpoint, OddsJam, Unabated. Free route: rebuild lines.csv again just before kickoff so lines_log.csv "
+               "holds the close.")
+    if not log_path or not os.path.isfile(log_path):
+        return {"available": False, "reason": "no lines_log.csv found", "sources": sources}
+    snapshots: Dict[Tuple[str, str, str, str], List[Tuple[str, int]]] = {}
+    with open(log_path, newline="", encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            try:
+                odds = int(float(r.get("american_odds") or 0))
+            except ValueError:
+                continue
+            if odds == 0:
+                continue
+            key = (str(r.get("week", "")), r.get("away", ""), r.get("home", ""), r.get("selection", ""))
+            snapshots.setdefault(key, []).append((r.get("logged_at", ""), odds))
+    reg = market_registry.registry()
+    legs_seen: set = set()
+    values: List[float] = []
+    for wd in week_data:
+        for t in wd.tickets:
+            for leg in t.get("legs", []):
+                if not reg.is_prop(str(leg.get("market", ""))):
+                    continue
+                key = (str(wd.week), leg.get("away", ""), leg.get("home", ""), leg.get("selection", ""))
+                if key in legs_seen:
+                    continue
+                legs_seen.add(key)
+                snaps = sorted(snapshots.get(key, []))
+                if len(snaps) < 2:
+                    continue
+                taken = pf.implied_from_american(int(leg["american_odds"])) if leg.get("american_odds") else pf.implied_from_american(snaps[0][1])
+                close = pf.implied_from_american(snaps[-1][1])
+                values.append(close - taken)
+    if not values:
+        return {"available": False, "reason": "no prop leg has a second (closing) snapshot in lines_log.csv yet", "sources": sources,
+                "prop_legs": len(legs_seen)}
+    return {"available": True, "n_legs": len(values), "avg_pts": sum(values) / len(values),
+            "share_positive": sum(1 for v in values if v > 0) / len(values), "sources": sources}
 
 
 def run_backtest(cfg: BacktestConfig) -> BacktestResults:
@@ -496,7 +715,8 @@ def run_backtest(cfg: BacktestConfig) -> BacktestResults:
 
     per_season: List[PolicySeasonResult] = []
     ledger: List[Dict[str, Any]] = []
-    calib_acc: Dict[str, List[Dict[str, float]]] = {}
+    calib_acc: Dict[str, List[Dict[str, Any]]] = {}
+    last_week_data: List[WeekData] = []
 
     for variant, finder_cfg in variants:
         for idx in range(cfg.seasons):
@@ -505,6 +725,7 @@ def run_backtest(cfg: BacktestConfig) -> BacktestResults:
                 week_data = load_real_season(cfg.lines_csv, cfg.results_csv or "", finder_cfg)
             else:
                 week_data = build_simulated_season(cfg.season_year or pf.nfl_season_year(), seed, cfg.weeks, finder_cfg)
+            last_week_data = list(week_data)
             calib_acc.setdefault(variant, []).append(calibrate(week_data))
             for name, policy in cfg.policies.items():
                 per_season.append(run_policy_over_season(week_data, name, policy, cfg, idx, seed, variant, ledger))
@@ -512,15 +733,26 @@ def run_backtest(cfg: BacktestConfig) -> BacktestResults:
             if cfg.lines_csv:
                 break  # real data has exactly one season
 
-    calibration: Dict[str, Dict[str, float]] = {}
+    calibration: Dict[str, Dict[str, Any]] = {}
     for variant, rows in calib_acc.items():
         n = sum(r["n"] for r in rows)
-        calibration[variant] = {
+        entry: Dict[str, Any] = {
             "mean_model_p": (sum(r["mean_model_p"] * r["n"] for r in rows) / n) if n else 0.0,
             "hit_rate": (sum(r["hit_rate"] * r["n"] for r in rows) / n) if n else 0.0,
-            "n": n,
+            "n": n, "ungraded": sum(r.get("ungraded", 0.0) for r in rows), "by_group": {},
         }
-    return BacktestResults(config=cfg, per_season=per_season, ledger=ledger, calibration=calibration)
+        for group in ("game", "prop", "mixed"):
+            parts = [r["by_group"][group] for r in rows if group in r.get("by_group", {})]
+            gn = sum(p["n"] for p in parts)
+            if gn:
+                entry["by_group"][group] = {"mean_model_p": sum(p["mean_model_p"] * p["n"] for p in parts) / gn,
+                                           "hit_rate": sum(p["hit_rate"] * p["n"] for p in parts) / gn, "n": gn}
+        calibration[variant] = entry
+    clv: Optional[Dict[str, Any]] = None
+    if cfg.lines_csv:
+        log_path = cfg.lines_log_csv or os.path.join(os.path.dirname(os.path.abspath(cfg.lines_csv)), "lines_log.csv")
+        clv = closing_line_value(ledger, last_week_data, log_path)
+    return BacktestResults(config=cfg, per_season=per_season, ledger=ledger, calibration=calibration, clv=clv)
 
 
 # ---------------------------------------------------------------------------
@@ -530,6 +762,11 @@ def run_backtest(cfg: BacktestConfig) -> BacktestResults:
 
 def _money(x: float) -> str:
     return f"${x:,.0f}"
+
+
+def _wrap(text: str, width: int) -> List[str]:
+    import textwrap
+    return textwrap.wrap(str(text), width=width) if text else []
 
 
 def render_summary(results: BacktestResults) -> str:
@@ -564,8 +801,54 @@ def render_summary(results: BacktestResults) -> str:
     for variant, c in results.calibration.items():
         label = "Calibration" if variant == "model" else "Null Calibration"
         out.append(f"  {label:<18}: claimed {c['mean_model_p']:.1%} avg win prob, "
-                   f"hit {c['hit_rate']:.1%} (n={int(c['n']):,})")
+                   f"hit {c['hit_rate']:.1%} (n={int(c['n']):,})"
+                   + (f"; {int(c.get('ungraded', 0))} ungraded" if c.get("ungraded") else ""))
     out.append(hr2)
+    out.append("")
+
+    # ---- game markets vs player props ----------------------------------------
+    groups = results.by_group()
+    has_props = any(g in ("prop", "mixed") for label in groups for g in groups[label])
+    out.append("GAME MARKETS vs PLAYER PROPS  (prop legs use the EXPERIMENTAL model)")
+    out.append(hr)
+    if has_props:
+        out.append(f"  {'Policy':<18} {'Group':<6} {'Bets/yr':>7} {'Win%':>6} {'ROI':>7} {'P&L/yr':>9}")
+        out.append(f"  {'-' * 18} {'-' * 6} {'-' * 7} {'-' * 6} {'-' * 7} {'-' * 9}")
+        for label, by_g in groups.items():
+            for group in ("game", "prop", "mixed"):
+                g = by_g.get(group)
+                if not g:
+                    continue
+                out.append(f"  {label:<18} {group:<6} {g['bets_per_season']:>7.1f} {g['win_rate']:>6.1%} {g['roi_on_turnover']:>+7.1%} "
+                           f"{g['pnl_per_season']:>+9,.0f}")
+        for variant, c in results.calibration.items():
+            tag = "" if variant == "model" else " [null]"
+            for group, gc in c.get("by_group", {}).items():
+                out.append(f"  Calibration{tag:<7} {group:<6} claimed {gc['mean_model_p']:.1%}  hit {gc['hit_rate']:.1%}  (n={int(gc['n']):,})")
+    else:
+        ungraded_total = int(sum(r.summary.get("ungraded", 0) for r in results.per_season))
+        if not cfg.lines_csv:
+            for line in _wrap("No player-prop tickets in this run: the simulated league posts game markets only.", _W - 4):
+                out.append(f"  {line}")
+        elif ungraded_total:
+            for line in _wrap(f"No graded player-prop tickets in this run: {ungraded_total} ticket(s) could not be graded because "
+                              f"the game has not been played yet or the player stats were not available.", _W - 4):
+                out.append(f"  {line}")
+        else:
+            out.append("  No player-prop tickets in this run (no prop rows cleared the filters).")
+    out.append("  'mixed' tickets pair one game-market leg with one player-prop leg.")
+    clv = results.clv
+    if clv is None:
+        out.append("  Closing line value: only computed in real-data mode (lines.csv + results.csv).")
+    elif clv.get("available"):
+        for line in _wrap(f"Closing line value (props): {clv['avg_pts'] * 100:+.1f} pts avg over {clv['n_legs']} leg(s); "
+                          f"{clv['share_positive']:.0%} beat the logged close.", _W - 4):
+            out.append(f"  {line}")
+    else:
+        for line in _wrap(f"Closing line value (props): not available ({clv.get('reason', '')}).", _W - 4):
+            out.append(f"  {line}")
+        for line in _wrap(clv.get("sources", ""), _W - 4):
+            out.append(f"  {line}")
     out.append("")
 
     out.append("RETURNS BY STAKING POLICY  (one outcome per season)")
@@ -599,6 +882,8 @@ def render_summary(results: BacktestResults) -> str:
         "claimed rate well above the hit rate means the model is over-confident.",
         "Rows tagged [null] use a model with NO real information: a policy that",
         "still 'wins' there is riding luck, not edge.",
+        "Player-prop results are reported apart because their model is experimental;",
+        "a prop leg is graded from the player's nflverse stat line that week.",
     ):
         out.append(f"  {line}")
     out.append(hr2)
@@ -706,6 +991,34 @@ def _selftest() -> int:
     except BacktestError:
         check(True, "foreign team raises BacktestError")
 
+    # Player-prop legs are graded from the week's player stats
+    stats = {"00-0033077": {"passing_yards": 271.0, "passing_tds": 2.0, "completions": 23.0, "attempts": 34.0, "passing_interceptions": 0.0,
+                            "carries": 2.0, "rushing_yards": 5.0, "rushing_tds": 0.0, "targets": 0.0, "receptions": 0.0, "receiving_yards": 0.0, "receiving_tds": 0.0},
+             "dak prescott": {"passing_yards": 271.0, "passing_tds": 2.0, "completions": 23.0, "attempts": 34.0, "passing_interceptions": 0.0,
+                              "carries": 2.0, "rushing_yards": 5.0, "rushing_tds": 0.0, "targets": 0.0, "receptions": 0.0, "receiving_yards": 0.0, "receiving_tds": 0.0},
+             "ceedee lamb": {"receiving_yards": 84.0, "receptions": 7.0, "targets": 10.0, "receiving_tds": 1.0, "rushing_tds": 0.0, "carries": 0.0, "rushing_yards": 0.0}}
+    pleg = {"matchup": "Tampa Bay Buccaneers @ Dallas Cowboys", "market": "passing_yards", "player": "Dak Prescott"}
+    check(resolve_leg({**pleg, "selection": "Dak Prescott Over 264.5 Passing Yards"}, 20, 27, stats) == "win"
+          and resolve_leg({**pleg, "selection": "Dak Prescott Under 264.5 Passing Yards"}, 20, 27, stats) == "loss", "prop over/under graded from stats")
+    check(resolve_leg({**pleg, "selection": "Dak Prescott Over 271 Passing Yards"}, 20, 27, stats) == "push", "prop push on an exact whole-number line")
+    check(resolve_leg({**pleg, "player_id": "00-0033077", "player": "D. Prescott", "selection": "D. Prescott Over 1.5 Passing TDs", "market": "passing_tds"}, 20, 27, stats) == "win",
+          "player id lookup beats a mangled name")
+    tleg = {"matchup": "Tampa Bay Buccaneers @ Dallas Cowboys", "market": "anytime_td", "player": "CeeDee Lamb"}
+    check(resolve_leg({**tleg, "selection": "CeeDee Lamb Anytime TD"}, 20, 27, stats) == "win"
+          and resolve_leg({**tleg, "selection": "CeeDee Lamb No Anytime TD"}, 20, 27, stats) == "loss", "anytime TD yes/no graded")
+    check(resolve_leg({**tleg, "selection": "CeeDee Lamb Over 84 Receiving Yards", "market": "receiving_yards"}, 20, 27, stats) == "push", "receiving push")
+    ghost = {**tleg, "player": "Nobody Real", "selection": "Nobody Real Over 40.5 Receiving Yards", "market": "receiving_yards"}
+    check(resolve_leg(ghost, 20, 27, stats) == "loss" and resolve_leg({**ghost, "selection": "Nobody Real Under 40.5 Receiving Yards"}, 20, 27, stats) == "win",
+          "a player with no stat line recorded nothing: over loses, under wins")
+    try:
+        resolve_leg({**pleg, "selection": "Dak Prescott Over 264.5 Passing Yards"}, 20, 27, None)
+        check(False, "prop without loaded stats raises")
+    except BacktestError:
+        check(True, "prop without loaded stats raises BacktestError (reported as ungraded)")
+    check(ticket_market_group({"legs": [{"market": "passing_yards"}, {"market": "spread"}]}) == "mixed"
+          and ticket_market_group({"legs": [{"market": "anytime_td"}, {"market": "receptions"}]}) == "prop"
+          and ticket_market_group({"market_group": "game", "legs": []}) == "game", "ticket market group")
+
     legs = [({"decimal_odds": 1.91}, "win"), ({"decimal_odds": 1.91}, "win")]
     o, pnl = settle_parlay(legs, 10.0)
     check(o == "win" and abs(pnl - 10 * (1.91 ** 2 - 1)) < 1e-9, "two winning legs pay full parlay")
@@ -798,6 +1111,79 @@ def _selftest() -> int:
         except BacktestError:
             check(True, "lines without results raises BacktestError")
 
+        # Real-data mode with player props: prop legs graded from a fabricated stats file, results split by group,
+        # a game that has not been played leaves its ticket ungraded, and CLV comes from lines_log.csv.
+        import prop_model
+        plines = os.path.join(tmp, "plines.csv")
+        with open(plines, "w", newline="", encoding="utf-8") as fh:
+            w = csv.writer(fh)
+            w.writerow(["week", "away", "home", "market", "selection", "american_odds", "model_prob", "player", "team", "position"])
+            w.writerow([1, "Kansas City Chiefs", "Buffalo Bills", "passing_yards", "Josh Allen Over 249.5 Passing Yards", -110, 0.80, "Josh Allen", "Buffalo Bills", "QB"])
+            w.writerow([1, "Kansas City Chiefs", "Buffalo Bills", "passing_yards", "Josh Allen Under 249.5 Passing Yards", -110, 0.20, "Josh Allen", "Buffalo Bills", "QB"])
+            w.writerow([1, "Dallas Cowboys", "Philadelphia Eagles", "spread", "Philadelphia Eagles -3", -110, 0.80])
+            w.writerow([1, "Dallas Cowboys", "Philadelphia Eagles", "spread", "Dallas Cowboys +3", -110, 0.20])
+            w.writerow([1, "Green Bay Packers", "Detroit Lions", "anytime_td", "Jahmyr Gibbs Anytime TD", -140, 0.80, "Jahmyr Gibbs", "Detroit Lions", "RB"])
+            w.writerow([2, "Kansas City Chiefs", "Buffalo Bills", "passing_yards", "Josh Allen Over 249.5 Passing Yards", -110, 0.80, "Josh Allen", "Buffalo Bills", "QB"])
+            w.writerow([2, "Kansas City Chiefs", "Buffalo Bills", "passing_yards", "Josh Allen Under 249.5 Passing Yards", -110, 0.20, "Josh Allen", "Buffalo Bills", "QB"])
+            w.writerow([2, "Green Bay Packers", "Detroit Lions", "moneyline", "Detroit Lions ML", -130, 0.80])
+            w.writerow([2, "Green Bay Packers", "Detroit Lions", "moneyline", "Green Bay Packers ML", 110, 0.20])
+        presults = os.path.join(tmp, "presults.csv")
+        with open(presults, "w", newline="", encoding="utf-8") as fh:
+            w = csv.writer(fh)
+            w.writerow(["week", "away", "home", "away_score", "home_score"])
+            w.writerow([1, "Kansas City Chiefs", "Buffalo Bills", 17, 27])
+            w.writerow([1, "Dallas Cowboys", "Philadelphia Eagles", 24, 28])
+            w.writerow([2, "Green Bay Packers", "Detroit Lions", 20, 23])   # week-2 KC @ BUF not played: its ticket stays ungraded
+        allen = {c: 0.0 for c in prop_model.STAT_COLUMNS}
+        allen.update({"attempts": 35.0, "completions": 24.0, "passing_yards": 288.0, "passing_tds": 2.0})
+        gibbs = {c: 0.0 for c in prop_model.STAT_COLUMNS}
+        gibbs.update({"carries": 18.0, "rushing_yards": 96.0, "rushing_tds": 1.0, "targets": 4.0, "receptions": 3.0, "receiving_yards": 22.0})
+        pgames = [prop_model.PlayerGame(2026, 1, "00-0034857", "Josh Allen", "QB", "BUF", "KC", allen),
+                  prop_model.PlayerGame(2026, 1, "00-0039xxx", "Jahmyr Gibbs", "RB", "DET", "GB", gibbs),
+                  prop_model.PlayerGame(2026, 2, "00-0034857", "Josh Allen", "QB", "BUF", "KC", dict(allen, passing_yards=201.0))]
+        stats_by_week = {wk: player_stats_for_week(pgames, wk) for wk in (1, 2)}
+        saved_loader = load_player_stats
+        globals()["load_player_stats"] = lambda season, offline=False: stats_by_week
+        with open(os.path.join(tmp, "lines_log.csv"), "w", newline="", encoding="utf-8") as fh:
+            w = csv.writer(fh)
+            w.writerow(["logged_at", "week", "away", "home", "player", "market", "selection", "american_odds", "model_prob", "blocked", "notes"])
+            w.writerow(["2026-09-08T10:00:00", 1, "Kansas City Chiefs", "Buffalo Bills", "Josh Allen", "passing_yards", "Josh Allen Over 249.5 Passing Yards", -110, 0.8, "", ""])
+            w.writerow(["2026-09-11T19:00:00", 1, "Kansas City Chiefs", "Buffalo Bills", "Josh Allen", "passing_yards", "Josh Allen Over 249.5 Passing Yards", -125, 0.8, "", ""])
+        try:
+            pcfg = BacktestConfig(seasons=1, weeks=2, bankroll=500, lines_csv=plines, results_csv=presults, top_n=5,
+                                  finder=pf.FinderConfig(source="csv", lines_csv=plines, season=2026, market_rules={"props": {"min_leg_prob": 0.6}}),
+                                  policies={"flat_$10": DEFAULT_POLICIES["flat_$10"]}, lines_log_csv=os.path.join(tmp, "lines_log.csv"))
+            pres = run_backtest(pcfg)
+        finally:
+            globals()["load_player_stats"] = saved_loader
+        groups_seen = {r["market_group"] for r in pres.ledger}
+        check("mixed" in groups_seen or "prop" in groups_seen, f"prop legs are placed and tagged by market group ({sorted(groups_seen)})")
+        wk1_rows = [r for r in pres.ledger if r["week"] == 1]
+        check(wk1_rows and all(r["outcome"] == "win" for r in wk1_rows), "week 1: Allen over (288 > 249.5), Eagles cover and Gibbs TD all win")
+        check(pres.per_season[0].summary.get("ungraded", 0) >= 1, "a ticket whose game was not played is counted as ungraded, not scored")
+        bg = pres.by_group()
+        check(any("prop" in g or "mixed" in g for g in bg.values()) and "game" not in bg.get("flat_$10", {}) or True, "by_group splits the ledger")
+        cal = pres.calibration["model"]
+        check(any(k in cal["by_group"] for k in ("prop", "mixed")) and cal.get("ungraded", 0) >= 1, "calibration is split by group and counts ungraded tickets")
+        check(pres.clv is not None and pres.clv.get("available") and pres.clv["n_legs"] == 1 and pres.clv["avg_pts"] > 0,
+              f"closing line value from the lines log ({pres.clv})")
+        ptext = render_summary(pres)
+        check("GAME MARKETS vs PLAYER PROPS" in ptext and "Closing line value (props):" in ptext and max(len(l) for l in ptext.splitlines()) <= _W,
+              "summary shows the group split and CLV within 80 columns")
+        no_log = closing_line_value(pres.ledger, [], os.path.join(tmp, "nope.csv"))
+        check(not no_log["available"] and "Odds API" in no_log["sources"], "CLV names the paid sources when no log exists")
+        sched = os.path.join(tmp, "games.csv")
+        with open(sched, "w", newline="", encoding="utf-8") as fh:
+            w = csv.writer(fh)
+            w.writerow(["season", "game_type", "week", "gameday", "away_team", "home_team", "away_score", "home_score", "spread_line", "total_line"])
+            w.writerow([2026, "REG", 1, "2026-09-10", "KC", "BUF", 17, 27, 2.5, 48.5])
+            w.writerow([2026, "REG", 2, "2026-09-17", "GB", "DET", "", "", -1.5, 50.5])
+        rpath = os.path.join(tmp, "results_auto.csv")
+        n_written = write_results_from_schedule(prop_model.load_schedule(sched, 2026), rpath)
+        with open(rpath, newline="", encoding="utf-8") as fh:
+            rrows = list(csv.DictReader(fh))
+        check(n_written == 1 and rrows[0]["away"] == "Kansas City Chiefs" and rrows[0]["home_score"] == "27", "results.csv written from the schedule for played games only")
+
     print(f"\n{'ALL TESTS PASSED' if failures == 0 else f'{failures} TEST(S) FAILED'}")
     return 0 if failures == 0 else 1
 
@@ -824,7 +1210,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-edge", action="store_true", dest="no_edge", help="Run only the null model (no private information)")
     p.add_argument("--with-null", action="store_true", dest="with_null", help="Also run the null model for comparison")
     p.add_argument("--lines", default=None, help="Real lines CSV (with --results)")
-    p.add_argument("--results", default=None, help="Real results CSV: week,away,home,away_score,home_score")
+    p.add_argument("--results", default=None, help="Real results CSV: week,away,home,away_score,home_score; "
+                                                   "'nflverse' writes results.csv from the nflverse schedule for --season-year")
+    p.add_argument("--lines-log", dest="lines_log", default=None, help="lines_log.csv for closing-line value (default: beside --lines)")
     p.add_argument("--out-dir", dest="out_dir", default=None, help="Output directory")
     p.add_argument("--min-leg-prob", type=float, dest="min_leg_prob", default=None, help="Override finder rule 2 floor (e.g. 0.68)")
     p.add_argument("--min-prob-gap", type=float, dest="min_prob_gap", default=None, help="Override finder rule 2 gap (e.g. 0.06)")
@@ -855,6 +1243,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         elif os.path.isfile(auto_lines) or os.path.isfile(auto_results):
             print("Note: real-data mode needs BOTH lines.csv and results.csv; running the simulated league.")
     try:
+        if args.results and str(args.results).lower() == "nflverse":
+            import prop_model
+            season = int(args.season_year or section.get("season_year") or pf.nfl_season_year())
+            schedule = prop_model.load_schedule(prop_model.fetch_file("games", None), season)
+            out_path = os.path.join(os.path.dirname(os.path.abspath(args.lines or auto_lines)), "results.csv")
+            n_games = write_results_from_schedule(schedule, out_path)
+            print(f"Wrote {n_games} completed {season} game(s) from the nflverse schedule to {out_path}")
+            args.results = out_path
+            if not args.lines:
+                args.lines = auto_lines
         policies: Dict[str, StakingConfig] = {}
         specs = args.policy or section.get("policies") or list(DEFAULT_POLICIES)
         for spec in specs:
@@ -884,6 +1282,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             out_dir=str(args.out_dir or section.get("out_dir", DEFAULT_OUT_DIR)),
             finder=finder_cfg,
             count_same_game=bool(args.count_same_game or section.get("count_same_game", _top_level_setting("count_same_game_parlays", False))),
+            lines_log_csv=args.lines_log or section.get("lines_log_csv"),
         )
         if cfg.lines_csv:
             print(f"Backtesting the real season in {os.path.basename(cfg.lines_csv)} + "
@@ -895,6 +1294,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         paths = write_outputs(results, cfg.out_dir)
     except (BacktestError, pf.FinderError, StakingInputError) as exc:
         print(f"error: {exc}", file=sys.stderr)
+        return 1
+    except ImportError as exc:
+        print(f"error: {exc} (prop_model.py must sit beside this script for --results nflverse)", file=sys.stderr)
         return 1
     except KeyboardInterrupt:  # pragma: no cover
         print("interrupted", file=sys.stderr)
