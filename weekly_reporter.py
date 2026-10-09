@@ -117,6 +117,10 @@ __all__ = [
     "generate_demo_slate",
     "collect_parlays",
     "stake_tickets",
+    "select_parlays",
+    "ParlaySelection",
+    "group_chosen",
+    "is_same_game_ticket",
     "build_weekly_report",
     "render_report_text",
     "estimate_nfl_week",
@@ -130,6 +134,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_REPORT_FILENAME = "weekly_parlay_report.txt"
 REPORT_WIDTH = 80  # plain-text column width; fits Terminal.app at default size
+MIN_PARLAYS, MAX_PARLAYS, DEFAULT_MAX_PARLAYS = 1, 10, 3   # the "how many parlays" control
 
 # Candidate entry points probed inside parlay_finder.py, in priority order.
 FINDER_FUNCTION_CANDIDATES: Tuple[str, ...] = (
@@ -155,21 +160,35 @@ class ReporterError(RuntimeError):
 
 @dataclass
 class Leg:
-    """One selection inside a parlay (e.g. 'BUF -3.5' in 'KC @ BUF')."""
+    """One selection inside a parlay (e.g. 'BUF -3.5' in 'KC @ BUF', or 'Dak Prescott Over 264.5 Passing Yards')."""
 
     matchup: str                 # "Kansas City Chiefs @ Buffalo Bills"
     selection: str               # "Buffalo Bills -3.5" / "Over 44.5" / "Chiefs ML"
-    market: str = ""             # "spread" | "total" | "moneyline" | free text
+    market: str = ""             # "spread" | "total" | "moneyline" | "team_total" | a prop market key
     p_true: Optional[float] = None
     decimal_odds: Optional[float] = None
+    player: Optional[str] = None         # player props only
+    team: Optional[str] = None
+    position: Optional[str] = None
+    market_label: str = ""               # "Passing Yards", "Spread", ...
+    line: Optional[float] = None
+    direction: Optional[str] = None      # Over / Under / Yes / No
+    experimental: bool = False           # the market's model is still flagged experimental
+    high_variance: bool = False
+    model_note: str = ""                 # one-line provenance of the model probability
 
     @property
     def american_odds(self) -> Optional[int]:
         return decimal_to_american(self.decimal_odds) if self.decimal_odds else None
 
+    @property
+    def implied_prob(self) -> Optional[float]:
+        return (1.0 / self.decimal_odds) if self.decimal_odds else None
+
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
         d["american_odds"] = self.american_odds
+        d["implied_prob"] = self.implied_prob
         return d
 
 
@@ -272,10 +291,18 @@ class ReportConfig:
     title: str = "NFL PARLAY WEEKLY REPORT CARD"
     source_label: str = ""
     slate_summary: Optional[Dict[str, Any]] = None   # parlay_finder's per-market filter diagnostics, when available
+    max_parlays: int = 3                     # "how many parlays": a MAXIMUM, 1..10; never relaxes a filter to reach it
+    count_same_game: bool = False            # False: same-game (SGP-priced) tickets are shown apart and not counted
 
     def __post_init__(self) -> None:
         if not isinstance(self.week, int) or isinstance(self.week, bool) or self.week < 1:
             raise ReporterError(f"week must be a positive integer, got {self.week!r}")
+        try:
+            self.max_parlays = int(self.max_parlays)
+        except (TypeError, ValueError) as exc:
+            raise ReporterError(f"max_parlays must be a whole number, got {self.max_parlays!r}") from exc
+        if not MIN_PARLAYS <= self.max_parlays <= MAX_PARLAYS:
+            raise ReporterError(f"max_parlays must be between {MIN_PARLAYS} and {MAX_PARLAYS}, got {self.max_parlays}")
         try:
             self.bankroll = float(self.bankroll)
         except (TypeError, ValueError) as exc:
@@ -304,6 +331,8 @@ class ReportConfig:
             "leg_groups": list(self.leg_groups),
             "portfolio_cap_pct": self.portfolio_cap_pct,
             "source_label": self.source_label,
+            "max_parlays": self.max_parlays,
+            "count_same_game": self.count_same_game,
         }
 
 
@@ -411,12 +440,30 @@ def _normalize_leg(raw: Any, idx: int) -> Leg:
     except StakingInputError as exc:
         raise ReporterError(f"Leg {idx + 1} odds invalid: {exc}") from exc
 
+    def _opt_text(key: str) -> Optional[str]:
+        v = d.get(key)
+        return str(v).strip() if v not in (None, "") else None
+
+    line_v = d.get("line")
+    try:
+        line_f = float(line_v) if line_v not in (None, "") else None
+    except (TypeError, ValueError):
+        line_f = None
     return Leg(
         matchup=str(matchup).strip(),
         selection=str(selection).strip(),
         market=str(market).strip().lower(),
         p_true=p_true,
         decimal_odds=decimal_odds,
+        player=_opt_text("player"),
+        team=_opt_text("team"),
+        position=_opt_text("position"),
+        market_label=_opt_text("market_label") or "",
+        line=line_f,
+        direction=_opt_text("direction"),
+        experimental=bool(d.get("experimental", False)),
+        high_variance=bool(d.get("high_variance", False)),
+        model_note=_opt_text("model_note") or "",
     )
 
 
@@ -785,39 +832,114 @@ def _rank_key(st: StakedTicket) -> Tuple[float, float, float]:
     return (-st.stake.expected_value, -st.ticket.edge, -st.ticket.p_true)
 
 
-def group_and_rank(
+def is_same_game_ticket(st: StakedTicket) -> bool:
+    """True when the finder flagged the ticket as same-game (books price it as an SGP)."""
+    raw = st.ticket.raw or {}
+    return bool(raw.get("sgp_required") or raw.get("same_game"))
+
+
+@dataclass
+class ParlaySelection:
+    """The outcome of the "how many parlays" control.
+
+    ``requested`` is the maximum N. ``chosen`` holds the top tickets by
+    expected value that passed every filter (at most N), with the weekly
+    exposure cap applied to just those stakes; ``beyond_limit`` holds the
+    other qualifying tickets; ``same_game`` holds SGP-flagged tickets kept
+    out of the count (unless ``count_same_game``); ``passed`` the $0 ones.
+    """
+
+    requested: int
+    chosen: List[StakedTicket]
+    beyond_limit: List[StakedTicket]
+    same_game: List[StakedTicket]
+    passed: List[StakedTicket]
+    cap_scale: float = 1.0          # < 1 when the weekly cap scaled the chosen stakes down
+    cap_pct: Optional[float] = None
+
+    @property
+    def qualified(self) -> int:
+        return len(self.chosen) + len(self.beyond_limit)
+
+    def message(self) -> str:
+        n, q = self.requested, self.qualified
+        text = f"You asked for {n}. {q} qualified."
+        if q > n:
+            text += f" Showing the top {len(self.chosen)} by expected value."
+        if self.cap_scale < 1.0 and self.cap_pct is not None:
+            text += (f" Stakes scaled x{self.cap_scale:.3f} so the {len(self.chosen)} tickets together risk no more than "
+                     f"{self.cap_pct:.0%} of the bankroll.")
+        if self.same_game:
+            text += (f" {len(self.same_game)} same-game ticket(s) shown separately and not counted (book prices them as "
+                     f"same-game parlays).")
+        return text
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"requested": self.requested, "qualified": self.qualified, "recommended": len(self.chosen),
+                "beyond_limit": len(self.beyond_limit), "same_game": len(self.same_game), "passed": len(self.passed),
+                "cap_scale": self.cap_scale, "message": self.message()}
+
+
+def select_parlays(
     staked: Sequence[StakedTicket],
+    max_parlays: int = DEFAULT_MAX_PARLAYS,
+    bankroll: float = 0.0,
+    portfolio_cap_pct: Optional[float] = 0.15,
+    count_same_game: bool = False,
+) -> ParlaySelection:
+    """Rank every ticket that passed the staking filters by expected value and keep at most ``max_parlays``.
+
+    N is a maximum: if fewer qualify, fewer are returned; nothing is relaxed
+    to reach N. The weekly exposure cap is applied to the chosen tickets only,
+    scaling their stakes proportionally when they would breach it. Same-game
+    tickets are set aside unless ``count_same_game`` is True.
+    """
+    if not MIN_PARLAYS <= int(max_parlays) <= MAX_PARLAYS:
+        raise ReporterError(f"max_parlays must be between {MIN_PARLAYS} and {MAX_PARLAYS}, got {max_parlays}")
+    same_game = [] if count_same_game else sorted([s for s in staked if is_same_game_ticket(s)], key=_rank_key)
+    pool = [s for s in staked if count_same_game or not is_same_game_ticket(s)]
+    qualified = sorted([s for s in pool if s.stake.is_bet], key=_rank_key)
+    passed = sorted([s for s in pool if not s.stake.is_bet], key=_rank_key)
+    chosen, beyond = qualified[: int(max_parlays)], qualified[int(max_parlays):]
+    cap_scale = 1.0
+    if portfolio_cap_pct is not None and bankroll > 0 and chosen:
+        before = sum(s.stake.stake_dollars for s in chosen)
+        try:
+            recs = apply_portfolio_cap([s.stake for s in chosen], bankroll, portfolio_cap_pct)
+        except StakingInputError as exc:
+            logger.warning("Portfolio cap not applied: %s", exc)
+            recs = [s.stake for s in chosen]
+        for s, r in zip(chosen, recs):
+            s.stake = r
+        after = sum(r.stake_dollars for r in recs)
+        if before > 0 and after < before - 1e-9:
+            cap_scale = after / before
+    for i, s in enumerate(chosen, 1):
+        s.rank = i
+    for s in beyond + same_game + passed:
+        s.rank = 0
+    return ParlaySelection(requested=int(max_parlays), chosen=chosen, beyond_limit=beyond, same_game=same_game, passed=passed,
+                           cap_scale=cap_scale, cap_pct=portfolio_cap_pct)
+
+
+def group_chosen(
+    chosen: Sequence[StakedTicket],
+    all_staked: Sequence[StakedTicket],
     leg_groups: Sequence[int],
-    top_n: int,
     include_other: bool,
     hide_empty_groups: bool = True,
-) -> Tuple[Dict[str, List[StakedTicket]], List[StakedTicket]]:
-    """Split recommended tickets (stake > 0) into leg-count sections.
-
-    Returns ``(sections, passed)`` where ``sections`` maps a heading like
-    ``"2-LEG"`` to its ranked top-N list and ``passed`` holds every $0 ticket.
-    With ``hide_empty_groups`` a leg count that has no candidates at all (for
-    example 3-leg when the finder is capped at two legs) gets no section; a
-    leg count whose candidates were all passed still shows an empty section.
-    """
-    recommended = [s for s in staked if s.stake.is_bet]
-    passed = sorted([s for s in staked if not s.stake.is_bet], key=_rank_key)
-
+) -> Dict[str, List[StakedTicket]]:
+    """Split the chosen tickets into leg-count sections (ranks are the overall 1..N)."""
     sections: Dict[str, List[StakedTicket]] = {}
     for n in leg_groups:
-        if hide_empty_groups and not any(s.ticket.n_legs == n for s in staked):
+        if hide_empty_groups and not any(s.ticket.n_legs == n for s in all_staked):
             continue
-        bucket = sorted([s for s in recommended if s.ticket.n_legs == n], key=_rank_key)[:top_n]
-        for i, s in enumerate(bucket, 1):
-            s.rank = i
-        sections[f"{n}-LEG"] = bucket
+        sections[f"{n}-LEG"] = [s for s in chosen if s.ticket.n_legs == n]
     if include_other:
-        others = sorted([s for s in recommended if s.ticket.n_legs not in leg_groups], key=_rank_key)[:top_n]
+        others = [s for s in chosen if s.ticket.n_legs not in leg_groups]
         if others:
-            for i, s in enumerate(others, 1):
-                s.rank = i
             sections["4+ LEG / OTHER"] = others
-    return sections, passed
+    return sections
 
 
 # ---------------------------------------------------------------------------
@@ -836,12 +958,21 @@ class WeeklyReport:
     all_staked: List[StakedTicket]
     generated_at: _dt.datetime = field(default_factory=_dt.datetime.now)
     text: str = ""
+    selection: Optional[ParlaySelection] = None
 
     # ---- aggregates -------------------------------------------------------
 
     @property
     def recommended(self) -> List[StakedTicket]:
         return [s for group in self.sections.values() for s in group]
+
+    @property
+    def beyond_limit(self) -> List[StakedTicket]:
+        return list(self.selection.beyond_limit) if self.selection else []
+
+    @property
+    def same_game(self) -> List[StakedTicket]:
+        return list(self.selection.same_game) if self.selection else []
 
     @property
     def total_risk(self) -> float:
@@ -874,8 +1005,12 @@ class WeeklyReport:
                 "total_risk_pct_of_bankroll": (self.total_risk / self.config.bankroll) if self.config.bankroll else 0.0,
                 "total_expected_value": round(self.total_expected_value, 2),
                 "total_potential_profit": round(self.total_potential_profit, 2),
+                **({"requested": self.selection.requested, "qualified": self.selection.qualified,
+                    "cap_scale": self.selection.cap_scale, "message": self.selection.message()} if self.selection else {}),
             },
             "sections": {name: [s.to_dict() for s in group] for name, group in self.sections.items()},
+            "beyond_limit": [s.to_dict() for s in self.beyond_limit],
+            "same_game": [s.to_dict() for s in self.same_game],
             "passed": [s.to_dict() for s in self.passed],
             "rejected": self.rejected,
             "slate": self.config.slate_summary,
@@ -947,20 +1082,25 @@ def _render_ticket(st: StakedTicket, index: int) -> List[str]:
     risk = f"RISK: ${s.stake_dollars:,.2f}"
     lines.append(f"{title:<{_W - len(risk) - 2}}{risk}")
     lines.append(_HR3)
-    # Legs: "    Leg 1 <matchup 38> <selection 24> (<odds>)" == 80 columns.
-    # The odds column grows for rare 4-digit prices and the selection column
-    # shrinks to compensate, so no leg line ever exceeds REPORT_WIDTH.
+    # Legs, two lines each: "    Leg 1  <selection> (<odds>)" then the matchup with the
+    # per-leg model and book-implied probabilities (and the EXPERIMENTAL tag for props).
     indent = "    "
-    matchup_w = 38
     for i, leg in enumerate(t.legs, 1):
         odds = f"({format_american(leg.american_odds)})" if leg.american_odds is not None else ""
         odds_w = max(6, len(odds))
-        label = f"{indent}Leg {i} "
-        sel_w = _W - len(label) - matchup_w - 1 - 1 - odds_w
-        lines.append(
-            f"{label}{_fit(leg.matchup, matchup_w):<{matchup_w}} "
-            f"{_fit(leg.selection, sel_w):<{sel_w}} {odds:>{odds_w}}"
-        )
+        label = f"{indent}Leg {i}  "
+        sel_w = _W - len(label) - 1 - odds_w
+        lines.append(f"{label}{_fit(leg.selection, sel_w):<{sel_w}} {odds:>{odds_w}}")
+        facts = []
+        if leg.p_true is not None:
+            facts.append(f"model {leg.p_true:.1%}")
+        if leg.implied_prob is not None:
+            facts.append(f"implied {leg.implied_prob:.1%}")
+        if leg.experimental:
+            facts.append("EXPERIMENTAL" + (" HIGH-VARIANCE" if leg.high_variance else ""))
+        facts.append(leg.matchup)
+        for wrapped in textwrap.wrap(" | ".join(facts), width=_W - len(label)):
+            lines.append(f"{' ' * len(label)}{wrapped}")
     lines.append(_HR3)
     col = 15
     lines.append(
@@ -979,6 +1119,16 @@ def _render_ticket(st: StakedTicket, index: int) -> List[str]:
         f"{indent}{'Stake Basis':<{col}}: {s.capped_fraction:>8.2%} of bankroll"
         f"{'  [CAPPED]' if s.cap_applied else ''}"
     )
+    raw = t.raw or {}
+    if raw.get("same_game"):
+        corr = f"{raw.get('correlation') or 'same-game'} correlation: {raw.get('correlation_reason') or ''}".strip().rstrip(":")
+        for wrapped in textwrap.wrap(f"Correlation: {corr}. {raw.get('pricing_note') or ''}".strip(), width=_W - 4):
+            lines.append(f"    {wrapped}")
+    exp_legs = [str(i) for i, leg in enumerate(t.legs, 1) if leg.experimental]
+    if exp_legs:
+        for wrapped in textwrap.wrap(f"Model: EXPERIMENTAL prop model on leg {', '.join(exp_legs)}; its probabilities are not yet "
+                                     f"validated by the backtest calibration gate.", width=_W - 4):
+            lines.append(f"    {wrapped}")
     if t.notes:
         for wrapped in textwrap.wrap(f"Notes: {t.notes}", width=_W - 4):
             lines.append(f"    {wrapped}")
@@ -1025,6 +1175,16 @@ def render_report_text(report: WeeklyReport) -> str:
     if slate.get("sides"):
         out.append(_kv("Leg Filter", f"{slate.get('passed', 0)} of {slate['sides']} sides clear the filter "
                                      f"({slate.get('markets', 0)} markets; table below)"))
+    sel = report.selection
+    if sel is not None:
+        parlays = f"you asked for {sel.requested}; {sel.qualified} qualified"
+        if sel.qualified > sel.requested:
+            parlays += f"; top {len(sel.chosen)} by expected value shown"
+        out.append(_kv("Parlays", parlays))
+        if sel.cap_scale < 1.0 and sel.cap_pct is not None:
+            out.append(_kv("Weekly Cap", f"stakes scaled x{sel.cap_scale:.3f} so {len(sel.chosen)} tickets risk <= {sel.cap_pct:.0%} of bankroll"))
+        if sel.same_game:
+            out.append(_kv("Same-Game", f"{len(sel.same_game)} ticket(s) need SGP pricing at the book; listed apart, not counted"))
     out.append(_HR2)
     out.append("")
 
@@ -1033,16 +1193,26 @@ def render_report_text(report: WeeklyReport) -> str:
         out.append("TOP RECOMMENDED PARLAYS")
         out.append(_HR)
         out.append("  No parlay cleared this week's filters. No bets are recommended.")
+        if sel is not None:
+            out.append(f"  You asked for {sel.requested}. {sel.qualified} qualified.")
         out.append("")
     for name, group in report.sections.items():
         out.append(f"TOP RECOMMENDED PARLAYS  -  {name} COMBINATIONS")
         out.append(_HR)
         if not group:
-            out.append("  (no +EV tickets cleared the staking filters this week)")
+            n_legs = int(name.split("-")[0]) if name[0].isdigit() else None
+            outside = [s for s in (sel.beyond_limit if sel else []) if n_legs is None or s.ticket.n_legs == n_legs]
+            if outside and sel is not None:
+                out.append(f"  ({len(outside)} qualifying ticket(s) fall outside your limit of {sel.requested}; "
+                           f"see QUALIFIED BUT BEYOND YOUR LIMIT below)")
+            else:
+                out.append("  (no +EV tickets cleared the staking filters this week)")
+                if sel is not None:
+                    out.append(f"  You asked for {sel.requested}. {sel.qualified} qualified.")
             out.append("")
             continue
-        for i, st in enumerate(group, 1):
-            out.extend(_render_ticket(st, i))
+        for st in group:
+            out.extend(_render_ticket(st, st.rank or 1))
 
     # ---- Summary ------------------------------------------------------------
     out.append("WEEKLY EXPOSURE SUMMARY")
@@ -1054,6 +1224,33 @@ def render_report_text(report: WeeklyReport) -> str:
     out.append(_kv("Expected Value", _money(report.total_expected_value, signed=True)))
     out.append(_kv("Bankroll After", f"${cfg.bankroll - report.total_risk:,.2f} reserved / ${cfg.bankroll:,.2f} total"))
     out.append("")
+
+    # ---- Qualified beyond the limit, and same-game tickets ------------------
+    def compact(st: StakedTicket, extra: str = "") -> List[str]:
+        t, s = st.ticket, st.stake
+        legs = " / ".join(leg.selection for leg in t.legs)
+        rows = [f"  {t.ticket_id:<12} {t.n_legs}L  {format_american(t.american_odds):>6}  "
+                f"P={t.p_true:.1%}  Imp={t.implied_prob:.1%}  Edge={t.edge:+.1%}  EV={_money(s.expected_value, signed=True)}",
+                f"               {_fit(legs, _W - 15)}"]
+        if extra:
+            for wrapped in textwrap.wrap(extra, width=_W - 18):
+                rows.append(f"               -> {wrapped}")
+        return rows
+
+    if sel is not None and sel.beyond_limit:
+        out.append(f"QUALIFIED BUT BEYOND YOUR LIMIT OF {sel.requested}  -  {len(sel.beyond_limit)} MORE TICKET(S), RANKED BY EV")
+        out.append(_HR)
+        for st in sel.beyond_limit:
+            out.extend(compact(st, f"would stake {_money(st.stake.stake_dollars)} before the weekly cap; raise max_parlays to include it"))
+        out.append("")
+    if sel is not None and sel.same_game:
+        out.append(f"SAME-GAME TICKETS  -  SGP PRICING REQUIRED, NOT COUNTED TOWARD YOUR LIMIT ({len(sel.same_game)})")
+        out.append(_HR)
+        for st in sel.same_game:
+            raw = st.ticket.raw or {}
+            why = raw.get("correlation_reason") or raw.get("correlation") or ""
+            out.extend(compact(st, f"{raw.get('correlation', 'same-game')} correlation: {why}. {raw.get('pricing_note', '')}".strip()))
+        out.append("")
 
     # ---- Leg filter by market (tuning aid for finder.market_rules) ---------
     by_market = slate.get("by_market") if isinstance(slate, dict) else None
@@ -1092,7 +1289,8 @@ def render_report_text(report: WeeklyReport) -> str:
 
     out.append(_HR2)
     out.append(_center("Edge = (P_true x Decimal Odds) - 1   |   Stakes rounded DOWN to the cent"))
-    out.append(_center("For simulation / research purposes only"))
+    out.append(_center("For simulation / research purposes only. Not financial advice."))
+    out.append(_center("Bet only what you can afford to lose. US help line: 1-800-GAMBLER."))
     out.append(_HR)
     return "\n".join(out) + "\n"
 
@@ -1122,10 +1320,14 @@ def build_weekly_report(
         normalised.extend(good)
         rejected.extend(bad)
 
-    staked = stake_tickets(normalised, config.bankroll, config.staking, config.portfolio_cap_pct)
-    sections, passed = group_and_rank(staked, config.leg_groups, config.top_n_per_group, config.include_other_groups,
-                                      config.hide_empty_groups)
-    report = WeeklyReport(config=config, sections=sections, passed=passed, rejected=rejected, all_staked=staked)
+    # Stake every ticket against the full bankroll first (no weekly cap yet), rank, keep at most
+    # max_parlays, then apply the weekly cap to the chosen set only, so the scaling reflects what
+    # would actually be placed.
+    staked = stake_tickets(normalised, config.bankroll, config.staking, None)
+    selection = select_parlays(staked, config.max_parlays, config.bankroll, config.portfolio_cap_pct, config.count_same_game)
+    sections = group_chosen(selection.chosen, staked, config.leg_groups, config.include_other_groups, config.hide_empty_groups)
+    report = WeeklyReport(config=config, sections=sections, passed=selection.passed, rejected=rejected, all_staked=staked,
+                          selection=selection)
     report.text = render_report_text(report)
     return report
 
@@ -1143,17 +1345,20 @@ def run_weekly_report(
     report_date: Optional[_dt.date] = None,
     finder_function: Optional[str] = None,
     demo_seed: int = 7,
+    max_parlays: int = DEFAULT_MAX_PARLAYS,
+    count_same_game: bool = False,
 ) -> WeeklyReport:
     """End-to-end: collect -> stake -> render -> save. Returns the report."""
     staking = staking or StakingConfig()
+    # Ask the finder for more candidates than the limit so the report can show what fell outside it.
     tickets, rejected, label = collect_parlays(
         week, source=source, input_path=input_path, bankroll=bankroll,
-        top_n=top_n, finder_function=finder_function, demo_seed=demo_seed,
+        top_n=max(top_n, 2 * int(max_parlays), 10), finder_function=finder_function, demo_seed=demo_seed,
     )
     config = ReportConfig(
         week=week, bankroll=bankroll, staking=staking, report_date=report_date,
         top_n_per_group=top_n, portfolio_cap_pct=portfolio_cap_pct, source_label=label,
-        slate_summary=getattr(tickets, "slate_summary", None),
+        slate_summary=getattr(tickets, "slate_summary", None), max_parlays=max_parlays, count_same_game=count_same_game,
     )
     report = build_weekly_report(tickets, config, rejected=rejected)
     saved = report.save_text(output_path)
@@ -1218,7 +1423,7 @@ def _selftest() -> int:
     slate = generate_demo_slate(6, seed=7)
     check(len(slate) == 10 and sum(1 for s in slate if len(s["legs"]) == 3) == 4, "demo slate has 6x2-leg + 4x3-leg")
     cfg = ReportConfig(week=6, bankroll=1000.0, staking=StakingConfig.fractional_kelly(0.25),
-                       report_date=_dt.date(2026, 10, 7), source_label="selftest")
+                       report_date=_dt.date(2026, 10, 7), source_label="selftest", max_parlays=10)
     report = build_weekly_report(slate, cfg)
     check(set(report.sections) >= {"2-LEG", "3-LEG"}, "report has 2-LEG and 3-LEG sections")
     check(all(s.stake.is_bet for s in report.recommended), "every recommended ticket has a positive stake")
@@ -1228,7 +1433,76 @@ def _selftest() -> int:
     for group in report.sections.values():
         evs = [s.stake.expected_value for s in group]
         check(evs == sorted(evs, reverse=True), "section sorted by expected value desc")
-        check([s.rank for s in group] == list(range(1, len(group) + 1)), "ranks are 1..n")
+        ranks = [s.rank for s in group]
+        check(ranks == sorted(ranks) and all(1 <= r <= 10 for r in ranks), "ranks are the overall order 1..N")
+    all_ranks = sorted(s.rank for s in report.recommended)
+    check(all_ranks == list(range(1, len(all_ranks) + 1)), "recommended tickets are ranked 1..N across sections")
+
+    # The "how many parlays" control: N is a maximum, ranked by EV, the weekly cap applies to the chosen set only
+    n_qual = len(report.recommended)
+    check(n_qual >= 4, f"demo slate yields enough qualifying tickets to test the limit ({n_qual})")
+    limited = build_weekly_report(slate, ReportConfig(week=6, bankroll=1000.0, report_date=_dt.date(2026, 10, 7), max_parlays=2))
+    assert limited.selection is not None
+    check(len(limited.recommended) == 2 and limited.selection.qualified == n_qual and len(limited.beyond_limit) == n_qual - 2,
+          f"max_parlays=2 keeps the top 2 of {n_qual} and lists the rest beyond the limit")
+    by_ev = sorted(report.recommended, key=lambda s: -s.stake.expected_value)
+    check([s.ticket.ticket_id for s in sorted(limited.recommended, key=lambda s: s.rank)] == [s.ticket.ticket_id for s in by_ev[:2]],
+          "the chosen tickets are the highest expected-value ones")
+    check(f"You asked for 2. {n_qual} qualified." in limited.selection.message() and "you asked for 2" in limited.text
+          and "QUALIFIED BUT BEYOND YOUR LIMIT OF 2" in limited.text, "report says how many were asked for and how many qualified")
+    big = build_weekly_report(slate, ReportConfig(week=6, bankroll=1000.0, staking=StakingConfig.flat_dollar(45), report_date=_dt.date(2026, 10, 7),
+                                                  max_parlays=10))
+    assert big.selection is not None
+    check(big.selection.cap_scale < 1.0 and abs(big.total_risk - 150.0) < 0.5 and "scaled x" in big.selection.message() and "Weekly Cap" in big.text,
+          f"ten $45 tickets are scaled down to the 15% weekly cap (x{big.selection.cap_scale:.3f}, risk ${big.total_risk:.2f})")
+    check(all(s.stake.stake_dollars == 45.0 for s in big.beyond_limit), "tickets beyond the limit keep their uncapped stakes")
+    only_one = build_weekly_report(slate[:1], ReportConfig(week=6, bankroll=1000.0, report_date=_dt.date(2026, 10, 7), max_parlays=5))
+    assert only_one.selection is not None
+    check(only_one.selection.qualified <= 1 and len(only_one.recommended) == only_one.selection.qualified and "You asked for 5." in only_one.selection.message(),
+          "fewer qualifiers than N returns only those (never relaxed to reach N)")
+    for bad_n in (0, 11, "three"):
+        try:
+            ReportConfig(week=6, bankroll=100.0, max_parlays=bad_n)  # type: ignore[arg-type]
+            check(False, f"max_parlays={bad_n!r} rejected")
+        except ReporterError:
+            check(True, f"max_parlays={bad_n!r} rejected")
+    sg_slate = [dict(t, sgp_required=True, same_game=True, correlation="positive", correlation_reason="a quarterback's yards are his receiver's yards",
+                     pricing_note="book prices this as a same-game parlay") for t in slate[:2]] + slate[2:]
+    sg_report = build_weekly_report(sg_slate, ReportConfig(week=6, bankroll=1000.0, report_date=_dt.date(2026, 10, 7), max_parlays=10))
+    assert sg_report.selection is not None
+    check(len(sg_report.same_game) == sum(1 for s in sg_report.all_staked if is_same_game_ticket(s)) and
+          all(not is_same_game_ticket(s) for s in sg_report.recommended) and "SAME-GAME TICKETS" in sg_report.text
+          and "same-game parlay" in sg_report.text, "same-game tickets are listed apart and not counted by default")
+    counted = build_weekly_report(sg_slate, ReportConfig(week=6, bankroll=1000.0, report_date=_dt.date(2026, 10, 7), max_parlays=10, count_same_game=True))
+    check(not counted.same_game and len(counted.recommended) >= len(sg_report.recommended), "count_same_game=True counts them like any ticket")
+    js = limited.to_dict()
+    check(js["summary"]["requested"] == 2 and js["summary"]["qualified"] == n_qual and len(js["beyond_limit"]) == n_qual - 2 and "message" in js["summary"],
+          "JSON carries requested / qualified / beyond_limit")
+
+    # Player-prop legs render with player, market, line, price, model and implied probabilities and the experimental badge
+    prop_ticket = {"ticket_id": "P1", "week": 6, "legs": [
+        {"matchup": "Tampa Bay Buccaneers @ Dallas Cowboys", "selection": "Dak Prescott Over 264.5 Passing Yards", "market": "passing_yards",
+         "american_odds": -115, "p_true": 0.74, "player": "Dak Prescott", "team": "Dallas Cowboys", "position": "QB", "market_label": "Passing Yards",
+         "line": 264.5, "direction": "Over", "experimental": True, "high_variance": False, "model_note": "proj 280 +/- 70"},
+        {"matchup": "Green Bay Packers @ Detroit Lions", "selection": "Detroit Lions ML", "market": "moneyline", "american_odds": -150, "p_true": 0.75}],
+        "experimental": True, "market_group": "mixed"}
+    pt = normalize_ticket(prop_ticket)
+    check(pt.legs[0].player == "Dak Prescott" and pt.legs[0].market_label == "Passing Yards" and pt.legs[0].line == 264.5 and pt.legs[0].experimental
+          and not pt.legs[1].experimental and abs((pt.legs[0].implied_prob or 0) - 115 / 215) < 1e-9, "prop leg fields survive normalisation")
+    prop_report = build_weekly_report([prop_ticket], ReportConfig(week=6, bankroll=1000.0, report_date=_dt.date(2026, 10, 7)))
+    ptxt = prop_report.text
+    check("Dak Prescott Over 264.5 Passing Yards" in ptxt and "(-115)" in ptxt and "model 74.0%" in ptxt and "implied 53.5%" in ptxt
+          and "EXPERIMENTAL" in ptxt and "Model: EXPERIMENTAL prop model on leg 1" in ptxt and "1-800-GAMBLER" in ptxt,
+          "report card shows per-leg price, model, implied, the experimental badge and the helpline")
+    check(max(len(line) for line in ptxt.splitlines()) <= REPORT_WIDTH, "prop leg lines fit the report width")
+    sg_ticket = dict(prop_ticket, ticket_id="P2", same_game=True, sgp_required=True, correlation="positive",
+                     correlation_reason="a quarterback's yards are his receivers' yards", pricing_note="confirm the payout at the book")
+    sg_text = build_weekly_report([sg_ticket], ReportConfig(week=6, bankroll=1000.0, report_date=_dt.date(2026, 10, 7), count_same_game=True)).text
+    check("Correlation: positive correlation: a quarterback's yards" in sg_text and "confirm the payout at the book" in sg_text,
+          "same-game tickets print their correlation reason and pricing note")
+    pleg = prop_report.to_dict()["sections"]["2-LEG"][0]["ticket"]["legs"][0] if prop_report.sections.get("2-LEG") else {}
+    check(pleg.get("player") == "Dak Prescott" and pleg.get("experimental") is True and abs(pleg.get("implied_prob", 0) - 115 / 215) < 1e-9,
+          "JSON legs carry player, experimental flag and implied probability for the web page")
 
     text = report.text
     check("Simulated NFL Week 6" in text and "Wednesday, October 07, 2026" in text, "header shows week and date")
@@ -1369,7 +1643,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--finder-function", default=None, dest="finder_function", help="Explicit function name inside parlay_finder.py")
     p.add_argument("--output", default=DEFAULT_REPORT_FILENAME, help="Plain-text report path")
     p.add_argument("--json-out", default=None, dest="json_out", help="Optional JSON side-car path for backtester.py")
-    p.add_argument("--top-n", type=int, default=5, dest="top_n", help="Tickets shown per leg-count section")
+    p.add_argument("--top-n", type=int, default=5, dest="top_n", help="Candidates requested per leg-count section")
+    p.add_argument("--max-parlays", type=int, default=DEFAULT_MAX_PARLAYS, dest="max_parlays",
+                   help=f"How many parlays to return at most ({MIN_PARLAYS}-{MAX_PARLAYS}); fewer when fewer qualify")
+    p.add_argument("--count-same-game", action="store_true", dest="count_same_game",
+                   help="Count same-game (SGP-priced) tickets toward the limit instead of listing them apart")
     p.add_argument("--seed", type=int, default=7, help="Seed for the demo slate")
     p.add_argument("--quiet", action="store_true", help="Do not print the report to stdout")
     p.add_argument("--selftest", action="store_true", help="Run built-in tests and exit")
@@ -1439,6 +1717,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             report_date=report_date,
             finder_function=args.finder_function,
             demo_seed=args.seed,
+            max_parlays=args.max_parlays,
+            count_same_game=args.count_same_game,
         )
     except (ReporterError, StakingInputError) as exc:
         print(f"error: {exc}", file=sys.stderr)

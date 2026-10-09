@@ -149,6 +149,7 @@ div[data-testid="stMetricValue"] { font-family:"Barlow Condensed", sans-serif; f
 .eb-slip-id { font-family:"Barlow Condensed", sans-serif; font-size:22px; font-weight:700; }
 .eb-slip-id small { font-family:"IBM Plex Mono", monospace; font-size:12px; color:var(--eb-muted); margin-left:8px; font-weight:500; }
 .eb-chip { font-size:13px; font-weight:700; border-radius:999px; padding:3px 10px; background:var(--eb-accent-soft); color:var(--eb-accent); white-space:nowrap; }
+.eb-chip-exp { background:rgba(255,193,77,.16); color:var(--eb-warn); font-size:11px; letter-spacing:.06em; text-transform:uppercase; }
 .eb-leg { border:1px solid var(--eb-line); border-radius:10px; padding:10px 12px; min-height:92px; }
 .eb-leg .lbl { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--eb-muted); }
 .eb-leg .pick { font-size:18px; font-weight:700; margin:2px 0; }
@@ -244,6 +245,39 @@ def _demo_path(bankroll: float, weeks: int = SEASON_WEEKS, seed: int = 11) -> Li
 # ===========================================================================
 # 4. Backend calls — each wrapped so a failure degrades to demo data
 # ===========================================================================
+
+
+def default_max_parlays() -> int:
+    """The max_parlays setting from pipeline_config.json (3 when unset or unreadable)."""
+    try:
+        import json
+        with open(os.path.join(HERE, "pipeline_config.json"), "r", encoding="utf-8") as fh:
+            value = int(json.load(fh).get("max_parlays", 3))
+        return max(1, min(10, value))
+    except Exception:
+        return 3
+
+
+def default_count_same_game() -> bool:
+    try:
+        import json
+        with open(os.path.join(HERE, "pipeline_config.json"), "r", encoding="utf-8") as fh:
+            return bool(json.load(fh).get("count_same_game_parlays", False))
+    except Exception:
+        return False
+
+
+def select_tickets(tickets: Sequence[Dict[str, Any]], wallet: float, staking_cfg: Any, max_parlays: int, week: int,
+                   count_same_game: bool) -> Any:
+    """Run the finder's tickets through weekly_reporter's staking and selection, exactly as the report card does.
+
+    Returns a ``weekly_reporter.ParlaySelection``: ``chosen`` (at most ``max_parlays``, ranked by EV, weekly cap applied
+    to that set only), ``beyond_limit``, ``same_game`` (SGP-priced tickets set aside) and ``passed``.
+    """
+    wr = BACKEND.reporter
+    good, _bad = wr.normalize_tickets(tickets, source="finder", week=week)
+    staked = wr.stake_tickets(good, wallet, staking_cfg, None)
+    return wr.select_parlays(staked, max_parlays, wallet, PORTFOLIO_CAP, count_same_game)
 
 
 def default_prop_rule() -> Tuple[float, float]:
@@ -438,6 +472,9 @@ with st.sidebar:
     starting_bankroll = float(st.number_input("Starting bankroll ($)", min_value=50.0, max_value=1_000_000.0,
                                               value=1000.0, step=50.0, format="%.0f"))
     init_wallet(starting_bankroll)
+    max_parlays = int(st.number_input("How many parlays (maximum)", min_value=1, max_value=10, value=default_max_parlays(), step=1,
+                                      help="A maximum, never a target: only tickets that pass every filter are returned, ranked by "
+                                           "expected value. If fewer qualify you get fewer; nothing is relaxed to reach the number."))
 
     mode = st.selectbox("Staking strategy mode", ["Flat Unit", "Fractional Kelly Criterion"], index=1)
     if mode.startswith("Flat"):
@@ -500,7 +537,17 @@ else:
     legs = [l for l in legs if l["p_true"] - l["implied_prob"] >= min_gap and l["p_true"] >= min_prob]
 
 using_demo = (not BACKEND.live) or engine_error is not None
-if BACKEND.live and not engine_error:
+selection: Any = None
+if BACKEND.live and not engine_error and BACKEND.reporter is not None:
+    try:
+        selection = select_tickets(tickets, wallet, build_staking_config(mode, flat_kind, flat_value, kelly_fraction), max_parlays, week,
+                                   default_count_same_game())
+        stakes = [s.stake.to_dict() for s in list(selection.chosen) + list(selection.beyond_limit) + list(selection.same_game) + list(selection.passed)]
+    except Exception as exc:  # reporter failure: fall back to direct sizing so the page still renders
+        engine_error = f"{type(exc).__name__}: {exc}"
+        selection = None
+        stakes = size_tickets(tickets, wallet, build_staking_config(mode, flat_kind, flat_value, kelly_fraction))
+elif BACKEND.live and not engine_error:
     stakes = size_tickets(tickets, wallet, build_staking_config(mode, flat_kind, flat_value, kelly_fraction))
 else:
     stakes = size_tickets_demo(tickets, wallet, mode, flat_kind, flat_value, kelly_fraction)
@@ -608,21 +655,34 @@ if by_market or rejected:
 
 st.markdown('<div class="eb-section">Optimal Parlay Engine</div>', unsafe_allow_html=True)
 st.markdown(f'<div class="eb-sub">Premium 2-leg slips sized by staking_engine against the current wallet · '
-            f'max 5% per ticket · max {PORTFOLIO_CAP:.0%} per week.</div>', unsafe_allow_html=True)
+            f'max 5% per ticket · max {PORTFOLIO_CAP:.0%} per week · you asked for up to {max_parlays}.</div>', unsafe_allow_html=True)
 
-if not tickets:
-    st.info("No parlay cleared this week's filters, so no bets are recommended. That is the engine saying no, which is the "
-            "designed behaviour of a high win-rate filter. Loosen the thresholds in the sidebar to explore the slate.")
+if selection is not None:
+    ranked = [s.ticket.raw for s in selection.chosen]
+    if selection.cap_scale < 1.0 or selection.qualified > selection.requested or selection.same_game:
+        st.info(selection.message())
+    else:
+        st.caption(selection.message())
 else:
-    ranked = sorted(tickets, key=lambda t: -stake_by_id.get(t["ticket_id"], {}).get("expected_value", 0.0))
+    ranked = sorted(tickets, key=lambda t: -stake_by_id.get(t["ticket_id"], {}).get("expected_value", 0.0))[:max_parlays]
+    if tickets:
+        st.caption(f"You asked for {max_parlays}. {min(len(tickets), max_parlays)} shown (demo sizing).")
+
+if not ranked:
+    st.info("No parlay cleared this week's filters, so no bets are recommended. That is the engine saying no, which is the "
+            "designed behaviour of a high win-rate filter. Loosen the thresholds in the sidebar to explore the slate."
+            + (f" You asked for {max_parlays}. 0 qualified." if selection is not None else ""))
+else:
     cols = st.columns(2)
-    for idx, t in enumerate(ranked[:TOP_N_PER_GROUP * 2]):
+    for idx, t in enumerate(ranked):
         s = stake_by_id.get(t["ticket_id"], {"stake_dollars": 0.0, "potential_profit": 0.0, "expected_value": 0.0,
                                               "capped_fraction": 0.0, "cap_applied": False, "reason": ""})
         placed_stake = st.session_state["placed"].get(t["ticket_id"])
         stake = float(placed_stake if placed_stake is not None else s["stake_dollars"])
         with cols[idx % 2], st.container(border=True):
             tag = f'<span class="eb-chip">Edge {t["edge"] * 100:+.1f}%</span>'
+            if t.get("experimental") or any(leg.get("experimental") for leg in t["legs"]):
+                tag = '<span class="eb-chip eb-chip-exp">experimental model</span> ' + tag
             if t.get("same_game"):
                 tag += f' <span class="eb-chip">same game · {t.get("correlation")}</span>'
             st.markdown(f'<div class="eb-slip-head"><div class="eb-slip-id">#{idx + 1}<small>{t["ticket_id"]}</small></div>'
@@ -630,11 +690,17 @@ else:
             l1, l2 = st.columns(2)
             for col, leg, label in ((l1, t["legs"][0], "Leg 1"), (l2, t["legs"][1], "Leg 2")):
                 with col:
+                    odds_i = int(leg["american_odds"])
+                    implied = float(leg["implied_prob"]) if leg.get("implied_prob") is not None else 1.0 / (1 + (odds_i / 100 if odds_i > 0 else 100 / abs(odds_i)))
+                    badge = ('<span class="eb-chip eb-chip-exp">experimental' + (' · high variance' if leg.get("high_variance") else '') + '</span>'
+                             if leg.get("experimental") else "")
                     st.markdown(
-                        f'<div class="eb-leg"><div class="lbl">{label}</div><div class="pick">{leg["selection"]}</div>'
+                        f'<div class="eb-leg"><div class="lbl">{label} {badge}</div><div class="pick">{leg["selection"]}</div>'
                         f'<div class="meta">{leg["matchup"]}</div>'
-                        f'<div class="meta"><span class="price">{american(int(leg["american_odds"]))}</span> · model {pct(float(leg["p_true"]), 0)}</div></div>',
+                        f'<div class="meta"><span class="price">{american(odds_i)}</span> · model {pct(float(leg["p_true"]), 1)} · implied {pct(implied, 1)}</div></div>',
                         unsafe_allow_html=True)
+            if t.get("same_game"):
+                st.caption(f"Same game, {t.get('correlation')} correlation: {t.get('correlation_reason') or ''}. {t.get('pricing_note') or ''}")
             c1, c2, c3 = st.columns(3)
             c1.markdown(f'<div class="eb-stat"><div class="lbl">True win rate</div><div class="val">{pct(t["p_true"], 2)}</div></div>', unsafe_allow_html=True)
             c2.markdown(f'<div class="eb-stat"><div class="lbl">Book odds</div><div class="val">{american(int(t["american_odds"]))}</div></div>', unsafe_allow_html=True)
@@ -660,6 +726,36 @@ else:
         with st.expander(f"Wager ledger ({len(st.session_state['ledger'])} placed, "
                          f"{money(sum(w['stake'] for w in st.session_state['ledger']))} at risk)"):
             st.dataframe(pd.DataFrame(st.session_state["ledger"]), hide_index=True, **_wide_kwargs(st.dataframe))
+
+
+def _compact_rows(staked_list: Sequence[Any], note_key: Optional[str] = None) -> pd.DataFrame:
+    rows = []
+    for s in staked_list:
+        t, r = s.ticket, s.stake
+        raw = t.raw or {}
+        row = {"Ticket": t.ticket_id, "Legs": " + ".join(leg.selection for leg in t.legs), "Odds": american(int(t.american_odds)),
+               "Model": t.p_true, "Implied": t.implied_prob, "Edge": t.edge, "EV": r.expected_value, "Stake": r.stake_dollars}
+        if note_key == "correlation":
+            row["Why"] = f"{raw.get('correlation', '')}: {raw.get('correlation_reason', '')}"
+        elif note_key == "reason":
+            row["Why"] = r.error or r.reason
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+_fmt = {"Model": "{:.1%}", "Implied": "{:.1%}", "Edge": "{:+.1%}", "EV": "${:,.2f}", "Stake": "${:,.2f}"}
+if selection is not None and selection.beyond_limit:
+    with st.expander(f"Qualified but beyond your limit of {selection.requested} ({len(selection.beyond_limit)}), ranked by expected value"):
+        st.dataframe(_compact_rows(selection.beyond_limit).style.format(_fmt), hide_index=True, **_wide_kwargs(st.dataframe))
+        st.caption("Raise the maximum in the sidebar to include these. Stakes shown are before the weekly cap.")
+if selection is not None and selection.same_game:
+    with st.expander(f"Same-game tickets, SGP pricing required and not counted toward your limit ({len(selection.same_game)})"):
+        st.dataframe(_compact_rows(selection.same_game, "correlation").style.format(_fmt), hide_index=True, **_wide_kwargs(st.dataframe))
+        st.caption("Both legs come from one game. Sportsbooks price these as same-game parlays, not at the product of the two prices "
+                   "shown here, so confirm the payout at the book before placing one.")
+if selection is not None and selection.passed:
+    with st.expander(f"Passed, no bet ({len(selection.passed)}): candidates that failed the staking filters"):
+        st.dataframe(_compact_rows(selection.passed, "reason").style.format(_fmt), hide_index=True, **_wide_kwargs(st.dataframe))
 
 # ===========================================================================
 # 11. Bankroll growth chart

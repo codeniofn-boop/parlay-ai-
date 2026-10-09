@@ -303,17 +303,20 @@ class BacktestConfig:
     season_year: Optional[int] = None
     policies: Dict[str, StakingConfig] = field(default_factory=lambda: dict(DEFAULT_POLICIES))
     portfolio_cap: Optional[float] = 0.15
-    top_n: int = 5
+    top_n: int = 5                      # tickets placed per week at most (the report's max_parlays)
     no_edge: bool = False
     with_null: bool = False
     lines_csv: Optional[str] = None
     results_csv: Optional[str] = None
     out_dir: str = DEFAULT_OUT_DIR
     finder: pf.FinderConfig = field(default_factory=pf.load_finder_config)
+    count_same_game: bool = False       # count SGP-priced same-game tickets like any other (default: set aside)
 
     def __post_init__(self) -> None:
         if self.seasons < 1 or self.weeks < 1:
             raise BacktestError("seasons and weeks must be >= 1")
+        if not 1 <= int(self.top_n) <= 10:
+            raise BacktestError("top_n (tickets per week) must be between 1 and 10")
         if self.bankroll <= 0 or math.isnan(self.bankroll):
             raise BacktestError("bankroll must be positive")
         if not self.policies:
@@ -450,7 +453,8 @@ def run_policy_over_season(
         report = build_weekly_report(
             wd.tickets,
             ReportConfig(week=wd.week, bankroll=tracker.bankroll, staking=policy, top_n_per_group=cfg.top_n,
-                         portfolio_cap_pct=cfg.portfolio_cap, include_skipped=False, source_label="backtest"),
+                         portfolio_cap_pct=cfg.portfolio_cap, include_skipped=False, source_label="backtest",
+                         max_parlays=int(cfg.top_n), count_same_game=cfg.count_same_game),
         )
         for st in report.recommended:
             outcome, pnl, leg_results = _grade_ticket(st, wd.scores)
@@ -554,8 +558,9 @@ def render_summary(results: BacktestResults) -> str:
     fr = cfg.finder
     out.append(f"  {'Finder Rules':<18}: {'/'.join(str(n) for n in fr.leg_sizes)}-leg only; leg >= {fr.min_leg_prob:.0%} "
                f"and >= {fr.min_prob_gap * 100:.0f} pts over {fr.edge_basis}")
-    out.append(f"  {'Same-Game Policy':<18}: {fr.same_game_policy}")
-    out.append(f"  {'Tickets Per Week':<18}: top {cfg.top_n} per leg size")
+    out.append(f"  {'Same-Game Policy':<18}: {fr.same_game_policy}"
+               f"{'; same-game tickets counted' if cfg.count_same_game else '; same-game (SGP) tickets set aside'}")
+    out.append(f"  {'Tickets Per Week':<18}: up to {cfg.top_n}, ranked by expected value")
     for variant, c in results.calibration.items():
         label = "Calibration" if variant == "model" else "Null Calibration"
         out.append(f"  {label:<18}: claimed {c['mean_model_p']:.1%} avg win prob, "
@@ -597,7 +602,8 @@ def render_summary(results: BacktestResults) -> str:
     ):
         out.append(f"  {line}")
     out.append(hr2)
-    out.append("For simulation / research purposes only".center(_W).rstrip())
+    out.append("For simulation / research purposes only. Not financial advice.".center(_W).rstrip())
+    out.append("Bet only what you can afford to lose. US help line: 1-800-GAMBLER.".center(_W).rstrip())
     out.append(hr)
     return "\n".join(out) + "\n"
 
@@ -638,6 +644,19 @@ def _open_file(path: str) -> None:
             subprocess.run(["xdg-open", path], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception as exc:  # pragma: no cover
         print(f"(could not auto-open {path}: {exc})")
+
+
+def _top_level_setting(key: str, default: Any, path: str = CONFIG_FILENAME) -> Any:
+    """A top-level pipeline_config.json value (used for settings shared with the weekly report)."""
+    for candidate in (path, os.path.join(os.path.dirname(os.path.abspath(__file__)), path)):
+        if os.path.isfile(candidate):
+            try:
+                with open(candidate, "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+                return data.get(key, default) if isinstance(data, dict) else default
+            except (OSError, json.JSONDecodeError):
+                return default
+    return default
 
 
 def load_backtest_section(path: str = CONFIG_FILENAME) -> Dict[str, Any]:
@@ -799,7 +818,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--policy", action="append", default=None,
                    help="Staking policy, repeatable: flat:<pct> | flat$:<dollars> | kelly:<mult> | a default name")
     p.add_argument("--portfolio-cap", type=float, dest="portfolio_cap", default=None, help="Max weekly exposure fraction (<=0 disables)")
-    p.add_argument("--top-n", type=int, dest="top_n", default=None, help="Tickets placed per leg size per week")
+    p.add_argument("--top-n", type=int, dest="top_n", default=None, help="Tickets placed per week at most (1-10)")
+    p.add_argument("--count-same-game", action="store_true", dest="count_same_game",
+                   help="Count same-game (SGP-priced) tickets like any other instead of setting them aside")
     p.add_argument("--no-edge", action="store_true", dest="no_edge", help="Run only the null model (no private information)")
     p.add_argument("--with-null", action="store_true", dest="with_null", help="Also run the null model for comparison")
     p.add_argument("--lines", default=None, help="Real lines CSV (with --results)")
@@ -862,6 +883,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             results_csv=args.results or section.get("results_csv"),
             out_dir=str(args.out_dir or section.get("out_dir", DEFAULT_OUT_DIR)),
             finder=finder_cfg,
+            count_same_game=bool(args.count_same_game or section.get("count_same_game", _top_level_setting("count_same_game_parlays", False))),
         )
         if cfg.lines_csv:
             print(f"Backtesting the real season in {os.path.basename(cfg.lines_csv)} + "

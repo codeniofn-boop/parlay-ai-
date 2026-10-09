@@ -54,6 +54,8 @@ DEFAULTS: Dict[str, Any] = {
     "source": "finder",
     "input": None,
     "top_n": 5,
+    "max_parlays": 3,                 # "how many parlays": a maximum (1-10), ranked by expected value
+    "count_same_game_parlays": False, # same-game (SGP-priced) tickets are listed apart and not counted
     "output": "weekly_parlay_report.txt",
     "json_out": "weekly_parlay_report.json",
     "html_out": "docs/index.html",
@@ -138,8 +140,9 @@ def main() -> int:
         portfolio_cap = cfg["portfolio_cap"]
         portfolio_cap = float(portfolio_cap) if portfolio_cap not in (None, "") and float(portfolio_cap) > 0 else None
 
+        max_parlays = int(cfg["max_parlays"])
         print(f"Generating report for NFL Week {week} with a ${float(cfg['bankroll']):,.2f} bankroll "
-              f"({staking.mode.label})...")
+              f"({staking.mode.label}), up to {max_parlays} parlay(s)...")
         report = run_weekly_report(
             week=int(week),
             bankroll=float(cfg["bankroll"]),
@@ -151,6 +154,8 @@ def main() -> int:
             top_n=int(cfg["top_n"]),
             portfolio_cap_pct=portfolio_cap,
             report_date=today,
+            max_parlays=max_parlays,
+            count_same_game=bool(cfg["count_same_game_parlays"]),
         )
     except (ReporterError, StakingInputError) as exc:
         print(f"ERROR: {exc}")

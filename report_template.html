@@ -56,6 +56,8 @@ h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(34px, 
 .badge { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 3px 10px; font-size: 13px; font-weight: 600; line-height: 1.3; }
 .badge-sim { background: var(--warn-soft); color: var(--warn); }
 .badge-real { background: var(--accent-soft); color: var(--accent); }
+.badge-exp { background: var(--warn-soft); color: var(--warn); font-size: 11px; padding: 1px 7px; letter-spacing: .04em; text-transform: uppercase; vertical-align: middle; }
+.selection-msg { margin: 12px 0 0; font-size: 14px; color: var(--fg-2); }
 .masthead .badge-sim, .masthead .badge-real { background: rgba(255,255,255,.18); color: var(--accent-ink); }
 
 /* Controls */
@@ -160,6 +162,10 @@ summary { cursor: pointer; font-family: var(--font-display); font-weight: 700; t
         <option value="0.5">0.50 (aggressive)</option>
       </select>
     </div>
+    <div class="control">
+      <label for="maxparlays">Max parlays</label>
+      <input id="maxparlays" type="number" min="1" max="10" step="1" inputmode="numeric">
+    </div>
     <div class="control caps" id="caps"></div>
   </section>
 
@@ -169,8 +175,19 @@ summary { cursor: pointer; font-family: var(--font-display); font-weight: 700; t
     <div class="tile"><div class="lbl">To win if all hit</div><div class="val" id="k-win">$0</div><div class="sub">profit on top of stakes</div></div>
     <div class="tile"><div class="lbl">Expected value</div><div class="val" id="k-ev">$0</div><div class="sub">if the model is right</div></div>
   </section>
+  <p class="selection-msg" id="selection-msg" aria-live="polite"></p>
 
   <div id="sections"></div>
+
+  <details id="beyond-wrap" hidden>
+    <summary>Qualified but beyond your limit <span class="count" id="beyond-count"></span></summary>
+    <ul class="passed" id="beyond"></ul>
+  </details>
+
+  <details id="sgp-wrap" hidden>
+    <summary>Same-game tickets, SGP pricing required, not counted <span class="count" id="sgp-count"></span></summary>
+    <ul class="passed" id="sgp"></ul>
+  </details>
 
   <details id="passed-wrap">
     <summary>Passed (no bet) <span class="count" id="passed-count"></span></summary>
@@ -188,7 +205,7 @@ summary { cursor: pointer; font-family: var(--font-display); font-weight: 700; t
     </div>
     <div class="disclaimer">
       <h3>Please read</h3>
-      <p>This card is for research and entertainment. It is not financial advice, and a positive edge is a model's opinion, not a guarantee. Lines move until kickoff; confirm every price at your sportsbook. Bet only what you can afford to lose, and only where it is legal and you are of age. In the US, help is available any time at 1-800-GAMBLER.</p>
+      <p>This card is for research and entertainment. It is not financial advice, and a positive edge is a model's opinion, not a guarantee. Player-prop legs marked <span class="badge badge-exp">experimental</span> come from a projection model that has not yet passed its backtest calibration gate. Lines move until kickoff; confirm every price at your sportsbook. Bet only what you can afford to lose, and only where it is legal and you are of age. In the US, help is available any time at 1-800-GAMBLER.</p>
     </div>
   </footer>
 </main>
@@ -198,7 +215,7 @@ const REPORT = /*__REPORT_DATA__*/{};
 
 /*MATH-START*/
 // Browser port of staking_engine.compute_stake / apply_portfolio_cap and
-// weekly_reporter.group_and_rank. Kept in lock-step with the Python so the
+// weekly_reporter.select_parlays. Kept in lock-step with the Python so the
 // page shows the same cents as weekly_parlay_report.txt for the same settings.
 function roundDownCents(x) { return x <= 0 ? 0 : Math.floor(x * 100 + 1e-9) / 100; }
 function decimalToAmerican(d) { return d >= 2 ? Math.round((d - 1) * 100) : Math.round(-100 / (d - 1)); }
@@ -264,21 +281,40 @@ function rankKey(a, b) {
   return (b.stake.expected_value - a.stake.expected_value) || (b.ticket.edge - a.ticket.edge) || (b.ticket.p_true - a.ticket.p_true);
 }
 
-function stakeAndGroup(tickets, bankroll, cfg, topN, legGroups, portfolioCap) {
-  const recs = applyPortfolioCap(tickets.map(t => computeStake(bankroll, t.p_true, t.decimal_odds, cfg)), bankroll, portfolioCap);
-  const staked = tickets.map((t, i) => ({ ticket: t, stake: recs[i], rank: 0 }));
+// weekly_reporter.select_parlays: rank by EV, keep at most maxParlays, apply the weekly cap to the chosen set only,
+// set same-game (SGP-priced) tickets aside unless countSameGame.
+function selectParlays(staked, maxParlays, bankroll, portfolioCap, countSameGame) {
   const isBet = s => s.stake.stake_dollars > 0 && !s.stake.skipped;
-  const recommended = staked.filter(isBet), passed = staked.filter(s => !isBet(s)).sort(rankKey);
+  const isSgp = s => !!(s.ticket.sgp_required || s.ticket.same_game);
+  const sameGame = countSameGame ? [] : staked.filter(isSgp).sort(rankKey);
+  const pool = staked.filter(s => countSameGame || !isSgp(s));
+  const qualified = pool.filter(isBet).sort(rankKey);
+  const passed = pool.filter(s => !isBet(s)).sort(rankKey);
+  const n = Math.max(1, Math.min(10, Math.round(maxParlays) || 3));
+  const chosen = qualified.slice(0, n), beyond = qualified.slice(n);
+  let capScale = 1;
+  if (portfolioCap != null && bankroll > 0 && chosen.length) {
+    const before = chosen.reduce((a, s) => a + s.stake.stake_dollars, 0);
+    const recs = applyPortfolioCap(chosen.map(s => s.stake), bankroll, portfolioCap);
+    chosen.forEach((s, i) => { s.stake = recs[i]; });
+    const after = recs.reduce((a, r) => a + r.stake_dollars, 0);
+    if (before > 0 && after < before - 1e-9) capScale = after / before;
+  }
+  chosen.forEach((s, i) => { s.rank = i + 1; });
+  return { chosen, beyond, sameGame, passed, capScale, qualified: qualified.length, requested: n };
+}
+
+function stakeAndSelect(tickets, bankroll, cfg, maxParlays, legGroups, portfolioCap, countSameGame) {
+  const staked = tickets.map(t => ({ ticket: t, stake: computeStake(bankroll, t.p_true, t.decimal_odds, cfg), rank: 0 }));
+  const sel = selectParlays(staked, maxParlays, bankroll, portfolioCap, countSameGame);
   const sections = {};
   for (const n of legGroups) {
     if (!tickets.some(t => t.n_legs === n)) continue;  // no candidates of this size at all
-    const bucket = recommended.filter(s => s.ticket.n_legs === n).sort(rankKey).slice(0, topN);
-    bucket.forEach((s, i) => { s.rank = i + 1; });
-    sections[n + "-LEG"] = bucket;
+    sections[n + "-LEG"] = sel.chosen.filter(s => s.ticket.n_legs === n);
   }
-  const others = recommended.filter(s => !legGroups.includes(s.ticket.n_legs)).sort(rankKey).slice(0, topN);
-  if (others.length) { others.forEach((s, i) => { s.rank = i + 1; }); sections["4+ LEG / OTHER"] = others; }
-  return { sections, passed };
+  const others = sel.chosen.filter(s => !legGroups.includes(s.ticket.n_legs));
+  if (others.length) sections["4+ LEG / OTHER"] = others;
+  return Object.assign({ sections }, sel);
 }
 /*MATH-END*/
 
@@ -286,8 +322,10 @@ function stakeAndGroup(tickets, bankroll, cfg, topN, legGroups, portfolioCap) {
   const cfg0 = REPORT.config || {};
   const stk0 = cfg0.staking || {};
   const allTickets = [];
-  for (const group of Object.values(REPORT.sections || {})) for (const s of group) allTickets.push(s.ticket);
-  for (const s of (REPORT.passed || [])) allTickets.push(s.ticket);
+  const seen = new Set();
+  const take = s => { const t = s.ticket; const key = t.ticket_id || JSON.stringify(t.legs); if (!seen.has(key)) { seen.add(key); allTickets.push(t); } };
+  for (const group of Object.values(REPORT.sections || {})) for (const s of group) take(s);
+  for (const key of ["beyond_limit", "same_game", "passed"]) for (const s of (REPORT[key] || [])) take(s);
 
   const $ = id => document.getElementById(id);
   const money = x => "$" + x.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -311,13 +349,15 @@ function stakeAndGroup(tickets, bankroll, cfg, topN, legGroups, portfolioCap) {
     flatpct: (Number(stk0.flat_pct) || 0.01) * 100,
     flatusd: Number(stk0.flat_dollars) || 10,
     kelly: Number(stk0.kelly_multiplier) || 0.25,
+    maxParlays: Number(cfg0.max_parlays) || 3,
   };
   try { Object.assign(state, JSON.parse(localStorage.getItem("parlay-card-settings") || "{}")); } catch (e) {}
+  state.maxParlays = Math.max(1, Math.min(10, Math.round(Number(state.maxParlays) || 3)));
   const persist = () => { try { localStorage.setItem("parlay-card-settings", JSON.stringify(state)); } catch (e) {} };
 
   const maxPct = Number(stk0.max_stake_pct) || 0.05;
   const portPct = cfg0.portfolio_cap_pct == null ? null : Number(cfg0.portfolio_cap_pct);
-  const topN = Number(cfg0.top_n_per_group) || 5;
+  const countSameGame = !!cfg0.count_same_game;
   const legGroups = Array.isArray(cfg0.leg_groups) && cfg0.leg_groups.length ? cfg0.leg_groups : [2, 3];
   $("f-maxpct").textContent = pct(maxPct, 0);
   $("f-portpct").textContent = portPct == null ? "no weekly limit" : pct(portPct, 0);
@@ -336,18 +376,29 @@ function stakeAndGroup(tickets, bankroll, cfg, topN, legGroups, portfolioCap) {
     const card = el("article", "card");
     card.setAttribute("aria-label", "Ticket " + t.ticket_id);
     const head = el("div", "card-head");
-    const rank = el("div", "rank", "#" + (idx + 1));
+    const rank = el("div", "rank", "#" + (s.rank || idx + 1));
     rank.appendChild(el("small", null, t.ticket_id));
     head.appendChild(rank);
-    head.appendChild(el("span", "edge-chip", "Edge " + (t.edge >= 0 ? "+" : "") + pct(t.edge, 1)));
+    const chips = el("div");
+    if (t.legs.some(l => l.experimental)) chips.appendChild(el("span", "badge badge-exp", "experimental model"));
+    chips.appendChild(document.createTextNode(" "));
+    chips.appendChild(el("span", "edge-chip", "Edge " + (t.edge >= 0 ? "+" : "") + pct(t.edge, 1)));
+    head.appendChild(chips);
     card.appendChild(head);
 
     const legs = el("ul", "legs");
     for (const leg of t.legs) {
       const li = el("li", "leg");
       li.appendChild(el("div", "pick", leg.selection));
-      li.appendChild(el("div", "price", fmtAmerican(leg.american_odds != null ? leg.american_odds : decimalToAmerican(leg.decimal_odds))));
-      li.appendChild(el("div", "game", leg.matchup + (leg.p_true != null ? " · model " + pct(leg.p_true, 0) : "")));
+      const dec = leg.decimal_odds != null ? leg.decimal_odds : null;
+      li.appendChild(el("div", "price", fmtAmerican(leg.american_odds != null ? leg.american_odds : decimalToAmerican(dec))));
+      const facts = [leg.matchup];
+      if (leg.p_true != null) facts.push("model " + pct(leg.p_true, 1));
+      const implied = leg.implied_prob != null ? leg.implied_prob : (dec ? 1 / dec : null);
+      if (implied != null) facts.push("implied " + pct(implied, 1));
+      const game = el("div", "game", facts.join(" · ") + (leg.experimental ? " " : ""));
+      if (leg.experimental) game.appendChild(el("span", "badge badge-exp", leg.high_variance ? "experimental · high variance" : "experimental"));
+      li.appendChild(game);
       legs.appendChild(li);
     }
     card.appendChild(legs);
@@ -367,19 +418,44 @@ function stakeAndGroup(tickets, bankroll, cfg, topN, legGroups, portfolioCap) {
     risk.appendChild(left);
     risk.appendChild(el("div", "sub", pct(r.capped_fraction) + " of bankroll" + (r.cap_applied ? " · capped" : "")));
     card.appendChild(risk);
+    if (t.same_game) card.appendChild(el("p", "note", "Same game, " + (t.correlation || "") + " correlation: " + (t.correlation_reason || "") + ". " + (t.pricing_note || "")));
     if (t.notes) card.appendChild(el("p", "note", t.notes));
     return card;
   }
 
+  function compactList(hostId, countId, wrapId, items, why) {
+    const host = $(hostId);
+    host.replaceChildren();
+    $(countId).textContent = items.length ? "(" + items.length + ")" : "(none)";
+    $(wrapId).hidden = items.length === 0;
+    for (const s of items) {
+      const li = el("li");
+      const top = el("div");
+      top.appendChild(el("code", null, s.ticket.ticket_id + " "));
+      top.appendChild(document.createTextNode(s.ticket.legs.map(l => l.selection).join(" / ") + " · " + fmtAmerican(s.ticket.american_odds) +
+        " · model " + pct(s.ticket.p_true, 1) + " · edge " + (s.ticket.edge >= 0 ? "+" : "") + pct(s.ticket.edge, 1) +
+        " · EV " + moneySigned(s.stake.expected_value)));
+      li.appendChild(top);
+      li.appendChild(el("div", "why", why(s)));
+      host.appendChild(li);
+    }
+  }
+
   function render() {
     const cfg = stakingConfig();
-    const { sections, passed } = stakeAndGroup(allTickets, state.bankroll, cfg, topN, legGroups, portPct);
-    const rec = Object.values(sections).flat();
+    const sel = stakeAndSelect(allTickets, state.bankroll, cfg, state.maxParlays, legGroups, portPct, countSameGame);
+    const { sections, passed } = sel;
+    const rec = sel.chosen;
     const risk = rec.reduce((a, s) => a + s.stake.stake_dollars, 0);
     const win = rec.reduce((a, s) => a + s.stake.potential_profit, 0);
     const ev = rec.reduce((a, s) => a + s.stake.expected_value, 0);
     $("k-tickets").textContent = String(rec.length);
-    $("k-tickets-sub").textContent = allTickets.length + " candidates, " + passed.length + " passed";
+    $("k-tickets-sub").textContent = "you asked for " + sel.requested + ", " + sel.qualified + " qualified";
+    let msg = "You asked for " + sel.requested + ". " + sel.qualified + " qualified.";
+    if (sel.qualified > sel.requested) msg += " Showing the top " + rec.length + " by expected value.";
+    if (sel.capScale < 1 && portPct != null) msg += " Stakes scaled x" + sel.capScale.toFixed(3) + " so the " + rec.length + " tickets together risk no more than " + pct(portPct, 0) + " of the bankroll.";
+    if (sel.sameGame.length) msg += " " + sel.sameGame.length + " same-game ticket(s) listed apart and not counted (the book prices them as same-game parlays).";
+    $("selection-msg").textContent = msg;
     $("k-risk").textContent = money(risk);
     $("k-risk-sub").textContent = state.bankroll > 0 ? pct(risk / state.bankroll, 1) + " of bankroll" : "";
     $("k-win").textContent = money(win);
@@ -400,27 +476,26 @@ function stakeAndGroup(tickets, bankroll, cfg, topN, legGroups, portfolioCap) {
     }
     for (const [name, group] of Object.entries(sections)) {
       const h = el("h2", null, name.replace("-LEG", "-leg parlays").replace("4+ LEG / OTHER", "4+ leg parlays"));
-      h.appendChild(el("span", "count", group.length ? "top " + group.length : ""));
+      h.appendChild(el("span", "count", group.length ? group.length + " of " + sel.requested : ""));
       host.appendChild(h);
-      if (!group.length) { host.appendChild(el("div", "empty", "No " + name.toLowerCase() + " ticket clears the edge and stake filters at these settings.")); continue; }
+      if (!group.length) {
+        const n = parseInt(name, 10);
+        const outside = sel.beyond.filter(s => isNaN(n) || s.ticket.n_legs === n).length;
+        host.appendChild(el("div", "empty", outside
+          ? outside + " qualifying " + name.toLowerCase() + " ticket(s) fall outside your limit of " + sel.requested + "; raise Max parlays to include them."
+          : "No " + name.toLowerCase() + " ticket clears the edge and stake filters at these settings."));
+        continue;
+      }
       const grid = el("div", "grid");
       group.forEach((s, i) => grid.appendChild(renderTicket(s, i)));
       host.appendChild(grid);
     }
 
-    const pl = $("passed");
-    pl.replaceChildren();
-    $("passed-count").textContent = passed.length ? "(" + passed.length + ")" : "(none)";
-    $("passed-wrap").hidden = passed.length === 0;
-    for (const s of passed) {
-      const li = el("li");
-      const top = el("div");
-      top.appendChild(el("code", null, s.ticket.ticket_id + " "));
-      top.appendChild(document.createTextNode(s.ticket.legs.map(l => l.selection).join(" / ") + " · " + fmtAmerican(s.ticket.american_odds) + " · edge " + (s.ticket.edge >= 0 ? "+" : "") + pct(s.ticket.edge, 1)));
-      li.appendChild(top);
-      li.appendChild(el("div", "why", s.stake.reason));
-      pl.appendChild(li);
-    }
+    compactList("beyond", "beyond-count", "beyond-wrap", sel.beyond,
+      s => "qualifies; would stake " + money(s.stake.stake_dollars) + " before the weekly cap. Raise Max parlays to include it.");
+    compactList("sgp", "sgp-count", "sgp-wrap", sel.sameGame,
+      s => (s.ticket.correlation || "same-game") + " correlation: " + (s.ticket.correlation_reason || "") + ". " + (s.ticket.pricing_note || ""));
+    compactList("passed", "passed-count", "passed-wrap", passed, s => s.stake.reason);
   }
 
   // ---- controls -----------------------------------------------------------
@@ -429,6 +504,7 @@ function stakeAndGroup(tickets, bankroll, cfg, topN, legGroups, portfolioCap) {
     $("flatpct").value = state.flatpct;
     $("flatusd").value = state.flatusd;
     $("kellymult").value = String(state.kelly);
+    $("maxparlays").value = state.maxParlays;
     for (const b of document.querySelectorAll(".seg button")) b.setAttribute("aria-pressed", String(b.dataset.mode === state.mode));
     $("ctl-flatpct").hidden = state.mode !== "flatpct";
     $("ctl-flatusd").hidden = state.mode !== "flatusd";
@@ -439,10 +515,11 @@ function stakeAndGroup(tickets, bankroll, cfg, topN, legGroups, portfolioCap) {
   $("flatpct").addEventListener("input", e => { state.flatpct = num(e.target.value, 1); persist(); render(); });
   $("flatusd").addEventListener("input", e => { state.flatusd = num(e.target.value, 10); persist(); render(); });
   $("kellymult").addEventListener("change", e => { state.kelly = num(e.target.value, 0.25); persist(); render(); });
+  $("maxparlays").addEventListener("input", e => { state.maxParlays = Math.max(1, Math.min(10, Math.round(num(e.target.value, 3)) || 1)); persist(); render(); });
   for (const b of document.querySelectorAll(".seg button")) b.addEventListener("click", () => { state.mode = b.dataset.mode; persist(); syncControls(); render(); });
 
   syncControls();
   render();
-  window.__parlayCard = { stakeAndGroup, computeStake, applyPortfolioCap, state, allTickets };
+  window.__parlayCard = { stakeAndSelect, selectParlays, computeStake, applyPortfolioCap, state, allTickets };
 })();
 </script>
