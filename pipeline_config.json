@@ -17,7 +17,7 @@
   "html_out": "docs/index.html",
   "open_when_done": true,
   "finder": {
-    "_comment": "source: sim | csv | api. Rules: leg_sizes is capped at 2; a leg needs model probability >= min_leg_prob and (model - implied) >= min_prob_gap (edge_basis implied = 1/decimal odds incl. vig, fair = de-vigged); same_game_policy: never | positive_only | any",
+    "_comment": "source: sim | csv | api. Rules: leg_sizes is capped at 2; a leg needs model probability >= min_leg_prob and (model - implied) >= min_prob_gap (edge_basis implied = 1/decimal odds incl. vig, fair = de-vigged); same_game_policy: never | positive_only | any. markets lists market keys, labels or aliases from markets.json; the wildcards game, props and all are accepted (props = every player-prop market).",
     "source": "sim",
     "lines_csv": "lines.csv",
     "model_csv": null,
@@ -39,10 +39,8 @@
     "max_tickets_per_game": 4,
     "same_game_policy": "positive_only",
     "markets": [
-      "spread",
-      "total",
-      "moneyline",
-      "team_total"
+      "game",
+      "props"
     ],
     "rank_by": "growth",
     "auto_detect_lines": true,

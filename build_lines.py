@@ -39,10 +39,27 @@ totals. When a model number is missing, the side's ``model_prob`` is left
 blank so the finder falls back to the de-vigged market price (no edge),
 which is the honest default.
 
+Player props come from ``props_inputs.csv`` beside ``week_inputs.csv``, one
+row per prop copied from your sportsbook (header names are case-insensitive)::
+
+    week, away, home,        the game, spelled exactly as in week_inputs.csv
+    player,                  e.g. Dak Prescott
+    market,                  any label or alias from markets.json: Passing Yards, pass yds,
+                             Receptions, Anytime TD, Rush + Rec Yards, ...
+    line,                    the number for over/under props (blank for Anytime TD / First TD)
+    over_price, under_price, American prices (blank -> -110)
+    yes_price, no_price,     for yes/no props such as Anytime TD (no_price optional)
+    position, notes          optional
+
+Every over/under prop becomes an Over row and an Under row; a yes/no prop
+becomes a Yes row and, when priced, a No row. ``model_prob`` for props is
+filled by ``prop_model.py`` when it is present; otherwise it stays blank
+and the prop carries no edge.
+
 Usage::
 
-    python3 build_lines.py                      # week_inputs.csv -> lines.csv
-    python3 build_lines.py --inputs my.csv --out lines.csv --week 5
+    python3 build_lines.py                      # week_inputs.csv (+ props_inputs.csv) -> lines.csv
+    python3 build_lines.py --inputs my.csv --props my_props.csv --out lines.csv --week 5
     python3 build_lines.py --selftest
 """
 
@@ -56,14 +73,19 @@ import os
 import sys
 from typing import Any, Dict, List, Optional, Sequence
 
-__all__ = ["BuildLinesError", "normal_cdf", "expand_game", "build_lines_rows", "build_lines_csv",
-           "INPUTS_FILENAME", "LINES_FILENAME", "LINES_COLUMNS"]
+import market_registry
+from market_registry import RegistryError, format_prop_selection
+
+__all__ = ["BuildLinesError", "normal_cdf", "expand_game", "expand_prop", "build_lines_rows", "build_props_rows",
+           "build_lines_csv", "INPUTS_FILENAME", "PROPS_FILENAME", "LINES_FILENAME", "LINES_COLUMNS"]
 
 logger = logging.getLogger(__name__)
 
 INPUTS_FILENAME = "week_inputs.csv"
+PROPS_FILENAME = "props_inputs.csv"
 LINES_FILENAME = "lines.csv"
-LINES_COLUMNS = ("week", "away", "home", "market", "selection", "american_odds", "model_prob", "notes")
+LINES_COLUMNS = ("week", "away", "home", "market", "selection", "american_odds", "model_prob",
+                 "player", "position", "blocked", "model_note", "notes")
 MARGIN_SD = 13.5
 TOTAL_SD = 10.0
 TEAM_SD = math.sqrt((TOTAL_SD ** 2 + MARGIN_SD ** 2) / 4.0)
@@ -170,6 +192,80 @@ def expand_game(row: Dict[str, Any], line: int = 0) -> List[Dict[str, Any]]:
     return out
 
 
+def expand_prop(row: Dict[str, Any], line: int = 0, reg: Optional[market_registry.Registry] = None) -> List[Dict[str, Any]]:
+    """Turn one props_inputs.csv row into its lines.csv rows (Over + Under, or Yes [+ No]).
+
+    ``model_prob`` is left blank here; ``prop_model.py`` fills it in when it
+    is available, so the raw sportsbook numbers stay visible in lines.csv.
+    """
+    reg = reg or market_registry.registry()
+    r = {(k or "").strip().lower(): (v if v is not None else "") for k, v in row.items()}
+    try:
+        week = int(float(str(r["week"]).strip()))
+    except (KeyError, ValueError) as exc:
+        raise BuildLinesError(f"line {line}: week is required and must be a number") from exc
+    away, home = str(r.get("away", "")).strip(), str(r.get("home", "")).strip()
+    player = " ".join(str(r.get("player", "")).split())
+    if not away or not home or not player:
+        raise BuildLinesError(f"line {line}: away, home and player are required")
+    market_text = str(r.get("market", "")).strip()
+    key = reg.resolve(market_text)
+    if key is None or not reg.is_prop(key):
+        known = ", ".join(pm.label for pm in reg.props.values())
+        raise BuildLinesError(f"line {line}: unknown prop market '{market_text}'. Known prop markets: {known} (see markets.json)")
+    pm = reg.get(key)
+    assert pm is not None
+    position = str(r.get("position", "")).strip().upper()
+    notes = str(r.get("notes", "") or r.get("source", "")).strip()
+    out: List[Dict[str, Any]] = []
+
+    def add(selection: str, odds: int) -> None:
+        out.append({"week": week, "away": away, "home": home, "market": key, "selection": selection, "american_odds": odds,
+                    "model_prob": "", "player": player, "position": position, "blocked": "", "model_note": "", "notes": notes})
+
+    if pm.is_yes_no:
+        yes = next((r.get(k) for k in ("yes_price", "over_price", "price") if str(r.get(k, "") or "").strip() != ""), None)
+        if yes is None:
+            raise BuildLinesError(f"line {line}: {pm.label} for {player} needs a yes_price (the price to score)")
+        add(format_prop_selection(pm, player, "Yes", None), _price(yes, "yes_price", line))
+        no = next((r.get(k) for k in ("no_price", "under_price") if str(r.get(k, "") or "").strip() != ""), None)
+        if no is not None:
+            add(format_prop_selection(pm, player, "No", None), _price(no, "no_price", line))
+    else:
+        ln = _num(r.get("line"), "line", None, line)
+        if ln is None:
+            raise BuildLinesError(f"line {line}: {pm.label} for {player} needs a line (e.g. 264.5)")
+        add(format_prop_selection(pm, player, "Over", ln), _price(r.get("over_price"), "over_price", line))
+        add(format_prop_selection(pm, player, "Under", ln), _price(r.get("under_price"), "under_price", line))
+    return out
+
+
+def build_props_rows(props_path: str, week: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Read props_inputs.csv -> lines.csv rows (no model probabilities yet)."""
+    if not os.path.isfile(props_path):
+        raise BuildLinesError(f"Props file not found: {props_path}")
+    try:
+        reg = market_registry.registry()
+    except RegistryError as exc:
+        raise BuildLinesError(str(exc)) from exc
+    rows: List[Dict[str, Any]] = []
+    with open(props_path, newline="", encoding="utf-8-sig") as fh:
+        reader = csv.DictReader(fh)
+        if not reader.fieldnames:
+            raise BuildLinesError(f"{props_path} is empty")
+        needed = {"week", "away", "home", "player", "market"}
+        missing = needed - {f.strip().lower() for f in reader.fieldnames}
+        if missing:
+            raise BuildLinesError(f"{props_path} needs the columns: {', '.join(sorted(needed))} (missing {', '.join(sorted(missing))})")
+        for i, raw in enumerate(reader, 2):
+            if not any((v or "").strip() for v in raw.values()):
+                continue
+            expanded = expand_prop(raw, i, reg)
+            if week is None or expanded[0]["week"] == week:
+                rows.extend(expanded)
+    return rows
+
+
 def build_lines_rows(inputs_path: str, week: Optional[int] = None) -> List[Dict[str, Any]]:
     if not os.path.isfile(inputs_path):
         raise BuildLinesError(f"Input file not found: {inputs_path}")
@@ -192,14 +288,32 @@ def build_lines_rows(inputs_path: str, week: Optional[int] = None) -> List[Dict[
     return rows
 
 
-def build_lines_csv(inputs_path: str = INPUTS_FILENAME, out_path: str = LINES_FILENAME, week: Optional[int] = None) -> str:
+def build_lines_csv(inputs_path: str = INPUTS_FILENAME, out_path: str = LINES_FILENAME, week: Optional[int] = None,
+                    props_path: Optional[str] = None, include_props: bool = True) -> str:
+    """week_inputs.csv (+ props_inputs.csv beside it, or ``props_path``) -> lines.csv."""
     rows = build_lines_rows(inputs_path, week)
+    games = {(r["week"], r["away"], r["home"]) for r in rows}
+    n_props = 0
+    if include_props:
+        if props_path is None:
+            candidate = os.path.join(os.path.dirname(os.path.abspath(inputs_path)), PROPS_FILENAME)
+            props_path = candidate if os.path.isfile(candidate) else None
+        if props_path:
+            prop_rows = build_props_rows(props_path, week)
+            for pr in prop_rows:
+                if (pr["week"], pr["away"], pr["home"]) not in games:
+                    raise BuildLinesError(f"{os.path.basename(props_path)}: {pr['player']} is listed for {pr['away']} @ {pr['home']} "
+                                          f"(week {pr['week']}), which is not a game in {os.path.basename(inputs_path)}; "
+                                          f"team names must match that file exactly")
+            rows.extend(prop_rows)
+            n_props = len(prop_rows)
     abs_out = os.path.abspath(out_path)
     with open(abs_out, "w", newline="", encoding="utf-8") as fh:
-        writer = csv.DictWriter(fh, fieldnames=list(LINES_COLUMNS))
+        writer = csv.DictWriter(fh, fieldnames=list(LINES_COLUMNS), restval="")
         writer.writeheader()
         writer.writerows(rows)
-    logger.info("Wrote %d line rows for %d game(s) to %s", len(rows), len(rows) // 6 or 1, abs_out)
+    logger.info("Wrote %d line rows for %d game(s)%s to %s", len(rows), len(games),
+                f" including {n_props} player-prop side(s)" if n_props else "", abs_out)
     return abs_out
 
 
@@ -266,6 +380,61 @@ def _selftest() -> int:
         sides = parlay_finder.load_lines_csv(out, week=5)
         check(len(sides) == 6 and any(abs(s.model_prob - 0.87) < 1e-9 for s in sides), "parlay_finder loads the built file")
 
+    # Player props from props_inputs.csv
+    prow = {"week": "5", "away": "Tampa Bay Buccaneers", "home": "Dallas Cowboys", "player": "Dak Prescott", "market": "pass yds",
+            "line": "264.5", "over_price": "-115", "under_price": "-105", "position": "QB", "notes": "example"}
+    prows = expand_prop(prow, 2)
+    check(len(prows) == 2 and prows[0]["selection"] == "Dak Prescott Over 264.5 Passing Yards" and prows[1]["american_odds"] == -105
+          and prows[0]["market"] == "passing_yards" and prows[0]["player"] == "Dak Prescott" and prows[0]["model_prob"] == "",
+          "prop row expands to Over/Under with the alias resolved and model_prob blank")
+    trow = {"week": "5", "away": "Tampa Bay Buccaneers", "home": "Dallas Cowboys", "player": "CeeDee Lamb", "market": "Anytime TD", "yes_price": "-130"}
+    trows = expand_prop(trow, 3)
+    check(len(trows) == 1 and trows[0]["selection"] == "CeeDee Lamb Anytime TD" and trows[0]["american_odds"] == -130, "yes/no prop expands to one Yes row")
+    check(len(expand_prop({**trow, "no_price": "+100"}, 4)) == 2 and expand_prop({**trow, "yes_price": "", "over_price": "-120"}, 4)[0]["american_odds"] == -120,
+          "No price adds the No row; over_price is accepted as the Yes price")
+    check(expand_prop({**prow, "over_price": "", "under_price": ""}, 5)[0]["american_odds"] == -110, "blank prop prices default to -110")
+    for bad, why in (({**prow, "market": "elephants"}, "unknown prop market"), ({**prow, "line": ""}, "missing line"),
+                     ({**trow, "yes_price": ""}, "missing yes price"), ({**prow, "player": ""}, "missing player"),
+                     ({**prow, "market": "spread"}, "game market in the props file")):
+        try:
+            expand_prop(bad, 9)
+            check(False, f"{why} rejected")
+        except BuildLinesError:
+            check(True, f"{why} rejected")
+    with tempfile.TemporaryDirectory() as tmp:
+        inp = os.path.join(tmp, "week_inputs.csv")
+        with open(inp, "w", newline="", encoding="utf-8") as fh:
+            w = csv.DictWriter(fh, fieldnames=list(row.keys()))
+            w.writeheader()
+            w.writerow(row)
+        props = os.path.join(tmp, "props_inputs.csv")
+        fields = ["week", "away", "home", "player", "market", "line", "over_price", "under_price", "yes_price", "no_price", "position", "notes"]
+        with open(props, "w", newline="", encoding="utf-8") as fh:
+            w = csv.DictWriter(fh, fieldnames=fields, restval="")
+            w.writeheader()
+            w.writerow(prow)
+            w.writerow(trow)
+        out = build_lines_csv(inp, os.path.join(tmp, "lines.csv"))
+        with open(out, newline="", encoding="utf-8") as fh:
+            got = list(csv.DictReader(fh))
+        check(len(got) == 9 and set(got[0].keys()) == set(LINES_COLUMNS) and got[6]["player"] == "Dak Prescott" and got[0]["player"] == "",
+              "props beside week_inputs.csv are appended to lines.csv with the full column set")
+        sides = parlay_finder.load_lines_csv(out, week=5)
+        dak = next(s for s in sides if s.player == "Dak Prescott" and s.direction == "Over")
+        check(len(sides) == 9 and sum(1 for s in sides if s.is_prop) == 3 and 0.5 < dak.fair_prob < 0.55 and dak.position == "QB",
+              "parlay_finder loads the prop sides with a two-way de-vig")
+        out2 = build_lines_csv(inp, os.path.join(tmp, "lines2.csv"), include_props=False)
+        with open(out2, newline="", encoding="utf-8") as fh:
+            check(len(list(csv.DictReader(fh))) == 6, "include_props=False skips the props file")
+        with open(props, "a", newline="", encoding="utf-8") as fh:
+            w = csv.DictWriter(fh, fieldnames=fields, restval="")
+            w.writerow({**prow, "home": "Nowhere Team"})
+        try:
+            build_lines_csv(inp, os.path.join(tmp, "lines3.csv"))
+            check(False, "prop for a game missing from week_inputs.csv rejected")
+        except BuildLinesError as exc:
+            check("Nowhere Team" in str(exc), "prop for a game missing from week_inputs.csv rejected with the team name")
+
     print(f"\n{'ALL TESTS PASSED' if failures == 0 else f'{failures} TEST(S) FAILED'}")
     return 0 if failures == 0 else 1
 
@@ -273,6 +442,8 @@ def _selftest() -> int:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     p = argparse.ArgumentParser(prog="build_lines", description="Expand week_inputs.csv into lines.csv for parlay_finder.")
     p.add_argument("--inputs", default=INPUTS_FILENAME)
+    p.add_argument("--props", default=None, help=f"Player props CSV (default: {PROPS_FILENAME} beside --inputs when it exists)")
+    p.add_argument("--no-props", action="store_true", dest="no_props", help="Ignore props_inputs.csv")
     p.add_argument("--out", default=LINES_FILENAME)
     p.add_argument("--week", type=int, default=None, help="Only this week (default: all weeks in the file)")
     p.add_argument("--selftest", action="store_true")
@@ -281,7 +452,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.selftest:
         return _selftest()
     try:
-        out = build_lines_csv(args.inputs, args.out, args.week)
+        out = build_lines_csv(args.inputs, args.out, args.week, props_path=args.props, include_props=not args.no_props)
     except BuildLinesError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

@@ -1,91 +1,91 @@
-week,away,home,market,selection,american_odds,model_prob,notes
-5,Tampa Bay Buccaneers,Dallas Cowboys,spread,Dallas Cowboys -8.5,-110,0.585,VegasInsider consensus 2026-10-07 (DK showed -10/-625 earlier in week); model ESPN FPI
-5,Tampa Bay Buccaneers,Dallas Cowboys,spread,Tampa Bay Buccaneers +8.5,-110,0.415,VegasInsider consensus 2026-10-07 (DK showed -10/-625 earlier in week); model ESPN FPI
-5,Tampa Bay Buccaneers,Dallas Cowboys,total,Over 47.5,-110,,VegasInsider consensus 2026-10-07 (DK showed -10/-625 earlier in week); model ESPN FPI
-5,Tampa Bay Buccaneers,Dallas Cowboys,total,Under 47.5,-110,,VegasInsider consensus 2026-10-07 (DK showed -10/-625 earlier in week); model ESPN FPI
-5,Tampa Bay Buccaneers,Dallas Cowboys,moneyline,Dallas Cowboys ML,-470,0.87,VegasInsider consensus 2026-10-07 (DK showed -10/-625 earlier in week); model ESPN FPI
-5,Tampa Bay Buccaneers,Dallas Cowboys,moneyline,Tampa Bay Buccaneers ML,360,0.13,VegasInsider consensus 2026-10-07 (DK showed -10/-625 earlier in week); model ESPN FPI
-5,Philadelphia Eagles,Jacksonville Jaguars,spread,Jacksonville Jaguars -7,-110,0.4852,VegasInsider consensus 2026-10-07 (London game); model ESPN FPI
-5,Philadelphia Eagles,Jacksonville Jaguars,spread,Philadelphia Eagles +7,-110,0.5148,VegasInsider consensus 2026-10-07 (London game); model ESPN FPI
-5,Philadelphia Eagles,Jacksonville Jaguars,total,Over 42.5,-110,,VegasInsider consensus 2026-10-07 (London game); model ESPN FPI
-5,Philadelphia Eagles,Jacksonville Jaguars,total,Under 42.5,-110,,VegasInsider consensus 2026-10-07 (London game); model ESPN FPI
-5,Philadelphia Eagles,Jacksonville Jaguars,moneyline,Jacksonville Jaguars ML,-355,0.73,VegasInsider consensus 2026-10-07 (London game); model ESPN FPI
-5,Philadelphia Eagles,Jacksonville Jaguars,moneyline,Philadelphia Eagles ML,280,0.27,VegasInsider consensus 2026-10-07 (London game); model ESPN FPI
-5,Minnesota Vikings,New Orleans Saints,spread,New Orleans Saints +1.5,-108,0.5207,DraftKings via VegasInsider 2026-10-07; model ESPN FPI
-5,Minnesota Vikings,New Orleans Saints,spread,Minnesota Vikings -1.5,-112,0.4793,DraftKings via VegasInsider 2026-10-07; model ESPN FPI
-5,Minnesota Vikings,New Orleans Saints,total,Over 42.5,-110,,DraftKings via VegasInsider 2026-10-07; model ESPN FPI
-5,Minnesota Vikings,New Orleans Saints,total,Under 42.5,-110,,DraftKings via VegasInsider 2026-10-07; model ESPN FPI
-5,Minnesota Vikings,New Orleans Saints,moneyline,New Orleans Saints ML,105,0.46,DraftKings via VegasInsider 2026-10-07; model ESPN FPI
-5,Minnesota Vikings,New Orleans Saints,moneyline,Minnesota Vikings ML,-125,0.54,DraftKings via VegasInsider 2026-10-07; model ESPN FPI
-5,Chicago Bears,Green Bay Packers,spread,Green Bay Packers +2.5,-110,0.5118,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Chicago Bears,Green Bay Packers,spread,Chicago Bears -2.5,-110,0.4882,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Chicago Bears,Green Bay Packers,total,Over 45.5,-110,,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Chicago Bears,Green Bay Packers,total,Under 45.5,-110,,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Chicago Bears,Green Bay Packers,moneyline,Green Bay Packers ML,124,0.42,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Chicago Bears,Green Bay Packers,moneyline,Chicago Bears ML,-148,0.58,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Cincinnati Bengals,Miami Dolphins,spread,Miami Dolphins +6.5,-110,0.4236,VegasInsider consensus 2026-10-07 (some books -7.5); model ESPN FPI
-5,Cincinnati Bengals,Miami Dolphins,spread,Cincinnati Bengals -6.5,-110,0.5764,VegasInsider consensus 2026-10-07 (some books -7.5); model ESPN FPI
-5,Cincinnati Bengals,Miami Dolphins,total,Over 42.5,-110,,VegasInsider consensus 2026-10-07 (some books -7.5); model ESPN FPI
-5,Cincinnati Bengals,Miami Dolphins,total,Under 42.5,-110,,VegasInsider consensus 2026-10-07 (some books -7.5); model ESPN FPI
-5,Cincinnati Bengals,Miami Dolphins,moneyline,Miami Dolphins ML,270,0.19,VegasInsider consensus 2026-10-07 (some books -7.5); model ESPN FPI
-5,Cincinnati Bengals,Miami Dolphins,moneyline,Cincinnati Bengals ML,-340,0.81,VegasInsider consensus 2026-10-07 (some books -7.5); model ESPN FPI
-5,Cleveland Browns,New York Jets,spread,New York Jets -1.5,-110,0.5,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Cleveland Browns,New York Jets,spread,Cleveland Browns +1.5,-110,0.5,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Cleveland Browns,New York Jets,total,Over 39.5,-110,,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Cleveland Browns,New York Jets,total,Under 39.5,-110,,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Cleveland Browns,New York Jets,moneyline,New York Jets ML,-125,0.56,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Cleveland Browns,New York Jets,moneyline,Cleveland Browns ML,105,0.44,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Indianapolis Colts,Pittsburgh Steelers,spread,Pittsburgh Steelers -2.5,-110,0.4207,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Indianapolis Colts,Pittsburgh Steelers,spread,Indianapolis Colts +2.5,-110,0.5793,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Indianapolis Colts,Pittsburgh Steelers,total,Over 44.5,-110,,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Indianapolis Colts,Pittsburgh Steelers,total,Under 44.5,-110,,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Indianapolis Colts,Pittsburgh Steelers,moneyline,Pittsburgh Steelers ML,-148,0.49,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Indianapolis Colts,Pittsburgh Steelers,moneyline,Indianapolis Colts ML,124,0.51,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Las Vegas Raiders,New England Patriots,spread,New England Patriots -3.5,-110,0.503,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Las Vegas Raiders,New England Patriots,spread,Las Vegas Raiders +3.5,-110,0.497,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Las Vegas Raiders,New England Patriots,total,Over 45.5,-110,,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Las Vegas Raiders,New England Patriots,total,Under 45.5,-110,,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Las Vegas Raiders,New England Patriots,moneyline,New England Patriots ML,-198,0.64,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Las Vegas Raiders,New England Patriots,moneyline,Las Vegas Raiders ML,164,0.36,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,New York Giants,Washington Commanders,spread,Washington Commanders -3.5,-110,0.497,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,New York Giants,Washington Commanders,spread,New York Giants +3.5,-110,0.503,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,New York Giants,Washington Commanders,total,Over 43.5,-110,,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,New York Giants,Washington Commanders,total,Under 43.5,-110,,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,New York Giants,Washington Commanders,moneyline,Washington Commanders ML,-180,0.63,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,New York Giants,Washington Commanders,moneyline,New York Giants ML,150,0.37,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Houston Texans,Tennessee Titans,spread,Tennessee Titans +7.5,-110,0.5937,VegasInsider consensus 2026-10-07 (some books -6.5 / 39.5); model ESPN FPI
-5,Houston Texans,Tennessee Titans,spread,Houston Texans -7.5,-110,0.4063,VegasInsider consensus 2026-10-07 (some books -6.5 / 39.5); model ESPN FPI
-5,Houston Texans,Tennessee Titans,total,Over 37.5,-110,,VegasInsider consensus 2026-10-07 (some books -6.5 / 39.5); model ESPN FPI
-5,Houston Texans,Tennessee Titans,total,Under 37.5,-110,,VegasInsider consensus 2026-10-07 (some books -6.5 / 39.5); model ESPN FPI
-5,Houston Texans,Tennessee Titans,moneyline,Tennessee Titans ML,285,0.34,VegasInsider consensus 2026-10-07 (some books -6.5 / 39.5); model ESPN FPI
-5,Houston Texans,Tennessee Titans,moneyline,Houston Texans ML,-360,0.66,VegasInsider consensus 2026-10-07 (some books -6.5 / 39.5); model ESPN FPI
-5,Denver Broncos,Los Angeles Chargers,spread,Los Angeles Chargers +3.5,-110,0.6051,DraftKings spread via VegasInsider 2026-10-07; Denver injuries (Surtain
-5,Denver Broncos,Los Angeles Chargers,spread,Denver Broncos -3.5,-110,0.3949,DraftKings spread via VegasInsider 2026-10-07; Denver injuries (Surtain
-5,Denver Broncos,Los Angeles Chargers,total,Over 42.5,-110,,DraftKings spread via VegasInsider 2026-10-07; Denver injuries (Surtain
-5,Denver Broncos,Los Angeles Chargers,total,Under 42.5,-110,,DraftKings spread via VegasInsider 2026-10-07; Denver injuries (Surtain
-5,Denver Broncos,Los Angeles Chargers,moneyline,Los Angeles Chargers ML,154,0.51,DraftKings spread via VegasInsider 2026-10-07; Denver injuries (Surtain
-5,Denver Broncos,Los Angeles Chargers,moneyline,Denver Broncos ML,-185,0.49,DraftKings spread via VegasInsider 2026-10-07; Denver injuries (Surtain
-5,San Francisco 49ers,Seattle Seahawks,spread,Seattle Seahawks -2.5,-110,0.3863,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,San Francisco 49ers,Seattle Seahawks,spread,San Francisco 49ers +2.5,-110,0.6137,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,San Francisco 49ers,Seattle Seahawks,total,Over 45.5,-110,,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,San Francisco 49ers,Seattle Seahawks,total,Under 45.5,-110,,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,San Francisco 49ers,Seattle Seahawks,moneyline,Seattle Seahawks ML,-155,0.44,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,San Francisco 49ers,Seattle Seahawks,moneyline,San Francisco 49ers ML,130,0.56,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Detroit Lions,Arizona Cardinals,spread,Arizona Cardinals +5.5,-110,0.5089,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Detroit Lions,Arizona Cardinals,spread,Detroit Lions -5.5,-110,0.4911,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Detroit Lions,Arizona Cardinals,total,Over 54.5,-110,,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Detroit Lions,Arizona Cardinals,total,Under 54.5,-110,,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Detroit Lions,Arizona Cardinals,moneyline,Arizona Cardinals ML,205,0.31,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Detroit Lions,Arizona Cardinals,moneyline,Detroit Lions ML,-250,0.69,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Baltimore Ravens,Atlanta Falcons,spread,Atlanta Falcons -3.5,-105,,DraftKings via VegasInsider 2026-10-07; NO MODEL: FPI projection (Ravens by 2.4) predates Lamar Jackson injury news and the 9-point line move
-5,Baltimore Ravens,Atlanta Falcons,spread,Baltimore Ravens +3.5,-115,,DraftKings via VegasInsider 2026-10-07; NO MODEL: FPI projection (Ravens by 2.4) predates Lamar Jackson injury news and the 9-point line move
-5,Baltimore Ravens,Atlanta Falcons,total,Over 43.5,-110,,DraftKings via VegasInsider 2026-10-07; NO MODEL: FPI projection (Ravens by 2.4) predates Lamar Jackson injury news and the 9-point line move
-5,Baltimore Ravens,Atlanta Falcons,total,Under 43.5,-110,,DraftKings via VegasInsider 2026-10-07; NO MODEL: FPI projection (Ravens by 2.4) predates Lamar Jackson injury news and the 9-point line move
-5,Baltimore Ravens,Atlanta Falcons,moneyline,Atlanta Falcons ML,-180,,DraftKings via VegasInsider 2026-10-07; NO MODEL: FPI projection (Ravens by 2.4) predates Lamar Jackson injury news and the 9-point line move
-5,Baltimore Ravens,Atlanta Falcons,moneyline,Baltimore Ravens ML,150,,DraftKings via VegasInsider 2026-10-07; NO MODEL: FPI projection (Ravens by 2.4) predates Lamar Jackson injury news and the 9-point line move
-5,Buffalo Bills,Los Angeles Rams,spread,Los Angeles Rams -3,-110,0.4823,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Buffalo Bills,Los Angeles Rams,spread,Buffalo Bills +3,-110,0.5177,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Buffalo Bills,Los Angeles Rams,total,Over 54.5,-110,,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Buffalo Bills,Los Angeles Rams,total,Under 54.5,-110,,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Buffalo Bills,Los Angeles Rams,moneyline,Los Angeles Rams ML,-162,0.6,VegasInsider consensus 2026-10-07; model ESPN FPI
-5,Buffalo Bills,Los Angeles Rams,moneyline,Buffalo Bills ML,136,0.4,VegasInsider consensus 2026-10-07; model ESPN FPI
+week,away,home,market,selection,american_odds,model_prob,player,position,blocked,model_note,notes
+5,Tampa Bay Buccaneers,Dallas Cowboys,spread,Dallas Cowboys -8.5,-110,0.585,,,,,VegasInsider consensus 2026-10-07 (DK showed -10/-625 earlier in week); model ESPN FPI
+5,Tampa Bay Buccaneers,Dallas Cowboys,spread,Tampa Bay Buccaneers +8.5,-110,0.415,,,,,VegasInsider consensus 2026-10-07 (DK showed -10/-625 earlier in week); model ESPN FPI
+5,Tampa Bay Buccaneers,Dallas Cowboys,total,Over 47.5,-110,,,,,,VegasInsider consensus 2026-10-07 (DK showed -10/-625 earlier in week); model ESPN FPI
+5,Tampa Bay Buccaneers,Dallas Cowboys,total,Under 47.5,-110,,,,,,VegasInsider consensus 2026-10-07 (DK showed -10/-625 earlier in week); model ESPN FPI
+5,Tampa Bay Buccaneers,Dallas Cowboys,moneyline,Dallas Cowboys ML,-470,0.87,,,,,VegasInsider consensus 2026-10-07 (DK showed -10/-625 earlier in week); model ESPN FPI
+5,Tampa Bay Buccaneers,Dallas Cowboys,moneyline,Tampa Bay Buccaneers ML,360,0.13,,,,,VegasInsider consensus 2026-10-07 (DK showed -10/-625 earlier in week); model ESPN FPI
+5,Philadelphia Eagles,Jacksonville Jaguars,spread,Jacksonville Jaguars -7,-110,0.4852,,,,,VegasInsider consensus 2026-10-07 (London game); model ESPN FPI
+5,Philadelphia Eagles,Jacksonville Jaguars,spread,Philadelphia Eagles +7,-110,0.5148,,,,,VegasInsider consensus 2026-10-07 (London game); model ESPN FPI
+5,Philadelphia Eagles,Jacksonville Jaguars,total,Over 42.5,-110,,,,,,VegasInsider consensus 2026-10-07 (London game); model ESPN FPI
+5,Philadelphia Eagles,Jacksonville Jaguars,total,Under 42.5,-110,,,,,,VegasInsider consensus 2026-10-07 (London game); model ESPN FPI
+5,Philadelphia Eagles,Jacksonville Jaguars,moneyline,Jacksonville Jaguars ML,-355,0.73,,,,,VegasInsider consensus 2026-10-07 (London game); model ESPN FPI
+5,Philadelphia Eagles,Jacksonville Jaguars,moneyline,Philadelphia Eagles ML,280,0.27,,,,,VegasInsider consensus 2026-10-07 (London game); model ESPN FPI
+5,Minnesota Vikings,New Orleans Saints,spread,New Orleans Saints +1.5,-108,0.5207,,,,,DraftKings via VegasInsider 2026-10-07; model ESPN FPI
+5,Minnesota Vikings,New Orleans Saints,spread,Minnesota Vikings -1.5,-112,0.4793,,,,,DraftKings via VegasInsider 2026-10-07; model ESPN FPI
+5,Minnesota Vikings,New Orleans Saints,total,Over 42.5,-110,,,,,,DraftKings via VegasInsider 2026-10-07; model ESPN FPI
+5,Minnesota Vikings,New Orleans Saints,total,Under 42.5,-110,,,,,,DraftKings via VegasInsider 2026-10-07; model ESPN FPI
+5,Minnesota Vikings,New Orleans Saints,moneyline,New Orleans Saints ML,105,0.46,,,,,DraftKings via VegasInsider 2026-10-07; model ESPN FPI
+5,Minnesota Vikings,New Orleans Saints,moneyline,Minnesota Vikings ML,-125,0.54,,,,,DraftKings via VegasInsider 2026-10-07; model ESPN FPI
+5,Chicago Bears,Green Bay Packers,spread,Green Bay Packers +2.5,-110,0.5118,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Chicago Bears,Green Bay Packers,spread,Chicago Bears -2.5,-110,0.4882,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Chicago Bears,Green Bay Packers,total,Over 45.5,-110,,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Chicago Bears,Green Bay Packers,total,Under 45.5,-110,,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Chicago Bears,Green Bay Packers,moneyline,Green Bay Packers ML,124,0.42,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Chicago Bears,Green Bay Packers,moneyline,Chicago Bears ML,-148,0.58,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Cincinnati Bengals,Miami Dolphins,spread,Miami Dolphins +6.5,-110,0.4236,,,,,VegasInsider consensus 2026-10-07 (some books -7.5); model ESPN FPI
+5,Cincinnati Bengals,Miami Dolphins,spread,Cincinnati Bengals -6.5,-110,0.5764,,,,,VegasInsider consensus 2026-10-07 (some books -7.5); model ESPN FPI
+5,Cincinnati Bengals,Miami Dolphins,total,Over 42.5,-110,,,,,,VegasInsider consensus 2026-10-07 (some books -7.5); model ESPN FPI
+5,Cincinnati Bengals,Miami Dolphins,total,Under 42.5,-110,,,,,,VegasInsider consensus 2026-10-07 (some books -7.5); model ESPN FPI
+5,Cincinnati Bengals,Miami Dolphins,moneyline,Miami Dolphins ML,270,0.19,,,,,VegasInsider consensus 2026-10-07 (some books -7.5); model ESPN FPI
+5,Cincinnati Bengals,Miami Dolphins,moneyline,Cincinnati Bengals ML,-340,0.81,,,,,VegasInsider consensus 2026-10-07 (some books -7.5); model ESPN FPI
+5,Cleveland Browns,New York Jets,spread,New York Jets -1.5,-110,0.5,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Cleveland Browns,New York Jets,spread,Cleveland Browns +1.5,-110,0.5,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Cleveland Browns,New York Jets,total,Over 39.5,-110,,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Cleveland Browns,New York Jets,total,Under 39.5,-110,,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Cleveland Browns,New York Jets,moneyline,New York Jets ML,-125,0.56,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Cleveland Browns,New York Jets,moneyline,Cleveland Browns ML,105,0.44,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Indianapolis Colts,Pittsburgh Steelers,spread,Pittsburgh Steelers -2.5,-110,0.4207,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Indianapolis Colts,Pittsburgh Steelers,spread,Indianapolis Colts +2.5,-110,0.5793,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Indianapolis Colts,Pittsburgh Steelers,total,Over 44.5,-110,,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Indianapolis Colts,Pittsburgh Steelers,total,Under 44.5,-110,,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Indianapolis Colts,Pittsburgh Steelers,moneyline,Pittsburgh Steelers ML,-148,0.49,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Indianapolis Colts,Pittsburgh Steelers,moneyline,Indianapolis Colts ML,124,0.51,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Las Vegas Raiders,New England Patriots,spread,New England Patriots -3.5,-110,0.503,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Las Vegas Raiders,New England Patriots,spread,Las Vegas Raiders +3.5,-110,0.497,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Las Vegas Raiders,New England Patriots,total,Over 45.5,-110,,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Las Vegas Raiders,New England Patriots,total,Under 45.5,-110,,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Las Vegas Raiders,New England Patriots,moneyline,New England Patriots ML,-198,0.64,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Las Vegas Raiders,New England Patriots,moneyline,Las Vegas Raiders ML,164,0.36,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,New York Giants,Washington Commanders,spread,Washington Commanders -3.5,-110,0.497,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,New York Giants,Washington Commanders,spread,New York Giants +3.5,-110,0.503,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,New York Giants,Washington Commanders,total,Over 43.5,-110,,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,New York Giants,Washington Commanders,total,Under 43.5,-110,,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,New York Giants,Washington Commanders,moneyline,Washington Commanders ML,-180,0.63,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,New York Giants,Washington Commanders,moneyline,New York Giants ML,150,0.37,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Houston Texans,Tennessee Titans,spread,Tennessee Titans +7.5,-110,0.5937,,,,,VegasInsider consensus 2026-10-07 (some books -6.5 / 39.5); model ESPN FPI
+5,Houston Texans,Tennessee Titans,spread,Houston Texans -7.5,-110,0.4063,,,,,VegasInsider consensus 2026-10-07 (some books -6.5 / 39.5); model ESPN FPI
+5,Houston Texans,Tennessee Titans,total,Over 37.5,-110,,,,,,VegasInsider consensus 2026-10-07 (some books -6.5 / 39.5); model ESPN FPI
+5,Houston Texans,Tennessee Titans,total,Under 37.5,-110,,,,,,VegasInsider consensus 2026-10-07 (some books -6.5 / 39.5); model ESPN FPI
+5,Houston Texans,Tennessee Titans,moneyline,Tennessee Titans ML,285,0.34,,,,,VegasInsider consensus 2026-10-07 (some books -6.5 / 39.5); model ESPN FPI
+5,Houston Texans,Tennessee Titans,moneyline,Houston Texans ML,-360,0.66,,,,,VegasInsider consensus 2026-10-07 (some books -6.5 / 39.5); model ESPN FPI
+5,Denver Broncos,Los Angeles Chargers,spread,Los Angeles Chargers +3.5,-110,0.6051,,,,,DraftKings spread via VegasInsider 2026-10-07; Denver injuries (Surtain
+5,Denver Broncos,Los Angeles Chargers,spread,Denver Broncos -3.5,-110,0.3949,,,,,DraftKings spread via VegasInsider 2026-10-07; Denver injuries (Surtain
+5,Denver Broncos,Los Angeles Chargers,total,Over 42.5,-110,,,,,,DraftKings spread via VegasInsider 2026-10-07; Denver injuries (Surtain
+5,Denver Broncos,Los Angeles Chargers,total,Under 42.5,-110,,,,,,DraftKings spread via VegasInsider 2026-10-07; Denver injuries (Surtain
+5,Denver Broncos,Los Angeles Chargers,moneyline,Los Angeles Chargers ML,154,0.51,,,,,DraftKings spread via VegasInsider 2026-10-07; Denver injuries (Surtain
+5,Denver Broncos,Los Angeles Chargers,moneyline,Denver Broncos ML,-185,0.49,,,,,DraftKings spread via VegasInsider 2026-10-07; Denver injuries (Surtain
+5,San Francisco 49ers,Seattle Seahawks,spread,Seattle Seahawks -2.5,-110,0.3863,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,San Francisco 49ers,Seattle Seahawks,spread,San Francisco 49ers +2.5,-110,0.6137,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,San Francisco 49ers,Seattle Seahawks,total,Over 45.5,-110,,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,San Francisco 49ers,Seattle Seahawks,total,Under 45.5,-110,,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,San Francisco 49ers,Seattle Seahawks,moneyline,Seattle Seahawks ML,-155,0.44,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,San Francisco 49ers,Seattle Seahawks,moneyline,San Francisco 49ers ML,130,0.56,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Detroit Lions,Arizona Cardinals,spread,Arizona Cardinals +5.5,-110,0.5089,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Detroit Lions,Arizona Cardinals,spread,Detroit Lions -5.5,-110,0.4911,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Detroit Lions,Arizona Cardinals,total,Over 54.5,-110,,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Detroit Lions,Arizona Cardinals,total,Under 54.5,-110,,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Detroit Lions,Arizona Cardinals,moneyline,Arizona Cardinals ML,205,0.31,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Detroit Lions,Arizona Cardinals,moneyline,Detroit Lions ML,-250,0.69,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Baltimore Ravens,Atlanta Falcons,spread,Atlanta Falcons -3.5,-105,,,,,,DraftKings via VegasInsider 2026-10-07; NO MODEL: FPI projection (Ravens by 2.4) predates Lamar Jackson injury news and the 9-point line move
+5,Baltimore Ravens,Atlanta Falcons,spread,Baltimore Ravens +3.5,-115,,,,,,DraftKings via VegasInsider 2026-10-07; NO MODEL: FPI projection (Ravens by 2.4) predates Lamar Jackson injury news and the 9-point line move
+5,Baltimore Ravens,Atlanta Falcons,total,Over 43.5,-110,,,,,,DraftKings via VegasInsider 2026-10-07; NO MODEL: FPI projection (Ravens by 2.4) predates Lamar Jackson injury news and the 9-point line move
+5,Baltimore Ravens,Atlanta Falcons,total,Under 43.5,-110,,,,,,DraftKings via VegasInsider 2026-10-07; NO MODEL: FPI projection (Ravens by 2.4) predates Lamar Jackson injury news and the 9-point line move
+5,Baltimore Ravens,Atlanta Falcons,moneyline,Atlanta Falcons ML,-180,,,,,,DraftKings via VegasInsider 2026-10-07; NO MODEL: FPI projection (Ravens by 2.4) predates Lamar Jackson injury news and the 9-point line move
+5,Baltimore Ravens,Atlanta Falcons,moneyline,Baltimore Ravens ML,150,,,,,,DraftKings via VegasInsider 2026-10-07; NO MODEL: FPI projection (Ravens by 2.4) predates Lamar Jackson injury news and the 9-point line move
+5,Buffalo Bills,Los Angeles Rams,spread,Los Angeles Rams -3,-110,0.4823,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Buffalo Bills,Los Angeles Rams,spread,Buffalo Bills +3,-110,0.5177,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Buffalo Bills,Los Angeles Rams,total,Over 54.5,-110,,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Buffalo Bills,Los Angeles Rams,total,Under 54.5,-110,,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Buffalo Bills,Los Angeles Rams,moneyline,Los Angeles Rams ML,-162,0.6,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI
+5,Buffalo Bills,Los Angeles Rams,moneyline,Buffalo Bills ML,136,0.4,,,,,VegasInsider consensus 2026-10-07; model ESPN FPI

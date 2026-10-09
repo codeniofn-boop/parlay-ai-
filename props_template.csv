@@ -1,0 +1,3 @@
+week,away,home,player,market,line,over_price,under_price,yes_price,no_price,position,notes
+5,Tampa Bay Buccaneers,Dallas Cowboys,Dak Prescott,Passing Yards,264.5,-115,-105,,,QB,EXAMPLE ROW - replace with your sportsbook's numbers
+5,Tampa Bay Buccaneers,Dallas Cowboys,CeeDee Lamb,Anytime TD,,,,-130,,WR,EXAMPLE ROW - yes/no props use yes_price (no_price optional)

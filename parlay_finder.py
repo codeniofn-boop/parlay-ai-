@@ -42,14 +42,19 @@ Where the lines come from (``source``)
 ``csv``
     Real lines from ``lines.csv``::
 
-        week,away,home,market,selection,american_odds[,model_prob]
+        week,away,home,market,selection,american_odds[,model_prob][,player,position,blocked,model_note]
 
-    ``market`` is ``spread`` / ``total`` / ``moneyline`` / ``team_total``;
-    ``selection`` is the line text, e.g. ``Buffalo Bills -3.5``,
-    ``Over 44.5``, ``Kansas City Chiefs ML``, ``Buffalo Bills Over 24.5``.
-    A blank ``model_prob`` falls back to the de-vigged market probability,
-    which (correctly) yields no edge. ``week_inputs.csv`` beside the script
-    is expanded into ``lines.csv`` automatically by ``build_lines.py``.
+    ``market`` is ``spread`` / ``total`` / ``moneyline`` / ``team_total`` or any
+    player-prop key declared in ``markets.json`` (``passing_yards``,
+    ``anytime_td``, ...). ``selection`` is the line text, e.g.
+    ``Buffalo Bills -3.5``, ``Over 44.5``, ``Kansas City Chiefs ML``,
+    ``Buffalo Bills Over 24.5``, ``Dak Prescott Over 264.5 Passing Yards``,
+    ``CeeDee Lamb Anytime TD``. Prop rows name the player in the ``player``
+    column; ``blocked`` carries a reason the side can never be bet (ruled
+    out, no projection). A blank ``model_prob`` falls back to the de-vigged
+    market probability, which (correctly) yields no edge. ``week_inputs.csv``
+    (games) and ``props_inputs.csv`` (player props) beside the script are
+    expanded into ``lines.csv`` automatically by ``build_lines.py``.
 ``api``
     Live lines from The Odds API v4 (``ODDS_API_KEY`` or ``finder.api_key``),
     with model probabilities merged from an optional ``model_probs.csv``.
@@ -86,11 +91,13 @@ import urllib.request
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Sequence, Tuple
 
+import market_registry
+from market_registry import GAME_MARKETS, RegistryError
 from staking_engine import StakingInputError, american_to_decimal, decimal_to_american
 
 __all__ = [
     "FinderError", "FinderConfig", "SimConfig", "MarketSide", "SimulatedGame", "ParsedSelection",
-    "NFL_TEAMS", "MAX_LEGS", "MARGIN_SD", "TOTAL_SD", "TEAM_SD",
+    "NFL_TEAMS", "MAX_LEGS", "MARGIN_SD", "TOTAL_SD", "TEAM_SD", "MARKETS", "all_markets",
     "normal_cdf", "devig_two_way", "implied_from_american", "american_from_implied",
     "simulate_season", "simulate_week_games", "sides_from_games",
     "parse_selection", "load_lines_csv", "load_model_probs_csv", "apply_model_probs",
@@ -134,7 +141,12 @@ TEAM_SD = math.sqrt((TOTAL_SD ** 2 + MARGIN_SD ** 2) / 4.0)
 HOME_FIELD_ADVANTAGE = 2.0
 STANDARD_VIG = 0.045
 
-MARKETS: Tuple[str, ...] = ("spread", "total", "moneyline", "team_total")
+MARKETS: Tuple[str, ...] = GAME_MARKETS   # the four built-in game markets
+
+
+def all_markets() -> Tuple[str, ...]:
+    """Every market the pipeline knows: the game markets plus the player props declared in markets.json."""
+    return market_registry.registry().market_keys
 
 
 class FinderError(RuntimeError):
@@ -200,6 +212,11 @@ class MarketSide:
     direction: Optional[str] = None  # "Over" / "Under" for totals and team totals
     true_prob: Optional[float] = None   # SIM ONLY: hidden truth for the backtester
     source: str = ""
+    player: Optional[str] = None        # player props: the player the line is about
+    player_id: Optional[str] = None     # nflverse id when the prop model matched the player
+    position: Optional[str] = None      # QB / RB / WR / TE when known
+    blocked: Optional[str] = None       # reason this side can never be bet (ruled out, no projection, ...)
+    model_note: str = ""                # one-line provenance of model_prob (projection, spread, factors)
 
     @property
     def matchup(self) -> str:
@@ -210,9 +227,26 @@ class MarketSide:
         return (self.week, self.away, self.home)
 
     @property
+    def is_prop(self) -> bool:
+        return market_registry.registry().is_prop(self.market)
+
+    @property
+    def experimental(self) -> bool:
+        """True for markets markets.json still flags as experimental (every prop until the backtest clears it)."""
+        return market_registry.registry().experimental(self.market)
+
+    @property
+    def high_variance(self) -> bool:
+        return market_registry.registry().high_variance(self.market)
+
+    @property
+    def market_label(self) -> str:
+        return market_registry.registry().label(self.market)
+
+    @property
     def market_key(self) -> Tuple[Any, ...]:
-        """Identifies a two-sided market: game + market + team (team totals) + number."""
-        return (self.game_key, self.market, self.team if self.market == "team_total" else None,
+        """Identifies a two-sided market: game + market + team (team totals) + player (props) + number."""
+        return (self.game_key, self.market, self.team if self.market == "team_total" else None, self.player,
                 abs(self.line) if self.line is not None else None)
 
     @property
@@ -242,16 +276,21 @@ class MarketSide:
             "p_true": round(self.model_prob, 6), "fair_prob": round(self.fair_prob, 6),
             "implied_prob": round(self.implied_prob, 6),
             "prob_gap": round(self.prob_gap("implied"), 6), "leg_edge": round(self.edge, 6),
+            "player": self.player, "player_id": self.player_id, "position": self.position,
+            "market_label": self.market_label, "is_prop": self.is_prop,
+            "experimental": self.experimental, "high_variance": self.high_variance,
+            "model_note": self.model_note,
         }
 
 
 class ParsedSelection(NamedTuple):
-    """Structured reading of a selection string."""
+    """Structured reading of a selection string (``player`` is set for player props only)."""
 
     market: str
     team: Optional[str]
     line: Optional[float]
     direction: Optional[str]
+    player: Optional[str] = None
 
 
 @dataclass
@@ -475,8 +514,34 @@ def parse_selection(selection: str, market_hint: str = "") -> ParsedSelection:
     ``"Over 44.5"``                -> ``("total", None, 44.5, "Over")``
     ``"Kansas City Chiefs ML"``    -> ``("moneyline", "Kansas City Chiefs", None, None)``
     ``"Buffalo Bills Over 24.5"``  -> ``("team_total", "Buffalo Bills", 24.5, "Over")``
+
+    Player props are recognised from the labels in ``markets.json``::
+
+        "Dak Prescott Over 264.5 Passing Yards" -> ("passing_yards", None, 264.5, "Over", "Dak Prescott")
+        "CeeDee Lamb Anytime TD"                -> ("anytime_td", None, None, "Yes", "CeeDee Lamb")
+
+    A prop whose text omits the market label (``"Dak Prescott Over 264.5"``) is
+    still understood when ``market_hint`` names the prop market.
     """
-    text = _TT_PREFIX_RE.sub("", selection.strip())
+    text = _TT_PREFIX_RE.sub("", " ".join(str(selection).split()))
+    reg = market_registry.registry()
+    prop = reg.parse_prop_selection(text)
+    hint_key = reg.resolve(market_hint) if market_hint else None
+    if prop is None and hint_key is not None and reg.is_prop(hint_key):
+        pm = reg.get(hint_key)
+        assert pm is not None
+        if pm.is_yes_no:
+            no = re.match(r"^(?P<player>.+?)\s+no$", text, re.IGNORECASE)
+            player = (no.group("player") if no else text).strip()
+            if player:
+                prop = (hint_key, player, None, "No" if no else "Yes")
+        else:
+            m = _TEAM_TOTAL_RE.match(text)  # "<player> Over 264.5"
+            if m:
+                prop = (hint_key, m.group("team").strip(), float(m.group("line")), m.group("dir").title())
+    if prop is not None:
+        market, player, line, direction = prop
+        return ParsedSelection(market, None, line, direction, player)
     m = _TOTAL_RE.match(text)
     if m:
         return ParsedSelection("total", None, float(m.group("line")), m.group("dir").title())
@@ -534,8 +599,18 @@ def load_lines_csv(path: str, week: Optional[int] = None, source: str = "csv") -
             continue
         hint = r.get("market", "")
         ps = parse_selection(r["selection"], hint)
-        if hint and hint.lower().replace(" ", "_") not in (ps.market, "ml", "h2h", "team_totals"):
+        reg = market_registry.registry()
+        hint_key = reg.resolve(hint) if hint else None
+        if hint_key is not None and reg.is_prop(hint_key) and not reg.is_prop(ps.market):
+            raise FinderError(f"{path} line {i}: market '{hint}' is a player prop but the selection '{r['selection']}' names no "
+                              f"player; write it as '<player> Over 264.5 {reg.label(hint_key)}' or fill the player column")
+        if hint and hint_key != ps.market:
             logger.warning("%s line %d: market '%s' disagrees with selection '%s'; using %s", path, i, hint, r["selection"], ps.market)
+        player = (r.get("player") or "").strip() or ps.player
+        if player and not reg.is_prop(ps.market):
+            raise FinderError(f"{path} line {i}: player '{player}' given for the game market '{ps.market}'")
+        if reg.is_prop(ps.market) and not player:
+            raise FinderError(f"{path} line {i}: prop market '{ps.market}' needs a player")
         odds = _to_int_odds(r["american_odds"])
         model_prob: Optional[float] = None
         mp = r.get("model_prob", "")
@@ -549,12 +624,15 @@ def load_lines_csv(path: str, week: Optional[int] = None, source: str = "csv") -
             if not 0.0 < model_prob < 1.0:
                 raise FinderError(f"{path} line {i}: model_prob must be in (0, 1), got {model_prob}")
         parsed.append(dict(week=wk, away=r["away"], home=r["home"], market=ps.market, selection=r["selection"],
-                           line=ps.line, team=ps.team, direction=ps.direction, odds=odds, model_prob=model_prob))
+                           line=ps.line, team=ps.team, direction=ps.direction, odds=odds, model_prob=model_prob,
+                           player=player or None, player_id=(r.get("player_id") or "").strip() or None,
+                           position=(r.get("position") or "").strip().upper() or None,
+                           blocked=(r.get("blocked") or "").strip() or None, model_note=(r.get("model_note") or "").strip()))
 
     groups: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = {}
     for p in parsed:
         key = (p["week"], p["away"], p["home"], p["market"], p["team"] if p["market"] == "team_total" else None,
-               abs(p["line"]) if p["line"] is not None else None)
+               p["player"], abs(p["line"]) if p["line"] is not None else None)
         groups.setdefault(key, []).append(p)
 
     sides: List[MarketSide] = []
@@ -570,7 +648,9 @@ def load_lines_csv(path: str, week: Optional[int] = None, source: str = "csv") -
                 model_prob, missing_model = fair, missing_model + 1
             sides.append(MarketSide(week=p["week"], away=p["away"], home=p["home"], market=p["market"], selection=p["selection"],
                                     american_odds=p["odds"], model_prob=model_prob, fair_prob=fair, line=p["line"],
-                                    team=p["team"], direction=p["direction"], source=source))
+                                    team=p["team"], direction=p["direction"], source=source, player=p["player"],
+                                    player_id=p["player_id"], position=p["position"], blocked=p["blocked"],
+                                    model_note=p["model_note"]))
     if missing_model:
         logger.warning("%d side(s) in %s had no model_prob; using de-vigged market probability (zero edge)", missing_model, path)
     if not sides:
@@ -730,7 +810,7 @@ class FinderConfig:
     max_tickets_per_game: int = 4
     same_game_policy: str = DEFAULT_SAME_GAME_POLICY  # Rule 3: never | positive_only | any
     allow_same_game: Optional[bool] = None            # legacy alias: False -> never, True -> any
-    markets: Tuple[str, ...] = MARKETS
+    markets: Tuple[str, ...] = ("game", "props")      # market keys, labels or aliases; wildcards game | props | all
     rank_by: str = "growth"
     auto_detect_lines: bool = True
 
@@ -770,11 +850,12 @@ class FinderConfig:
         self.same_game_policy = (self.same_game_policy or DEFAULT_SAME_GAME_POLICY).lower()
         if self.same_game_policy not in ("never", "positive_only", "any"):
             raise FinderError("same_game_policy must be never | positive_only | any")
-        if isinstance(self.markets, list):
-            self.markets = tuple(str(m).lower() for m in self.markets)
-        unknown = set(self.markets) - set(MARKETS)
-        if unknown:
-            raise FinderError(f"unknown markets: {', '.join(sorted(unknown))}")
+        if isinstance(self.markets, str):
+            self.markets = (self.markets,)
+        try:
+            self.markets = market_registry.registry().expand_markets(tuple(str(m) for m in self.markets))
+        except RegistryError as exc:
+            raise FinderError(f"finder.markets: {exc}") from exc
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "FinderConfig":
@@ -839,6 +920,8 @@ def leg_passes(s: MarketSide, cfg: FinderConfig) -> Tuple[bool, str]:
     """Apply the premium edge filter to one side -> ``(ok, reason_if_not)``."""
     if s.market not in cfg.markets:
         return False, "market not enabled"
+    if s.blocked:
+        return False, s.blocked
     if s.american_odds > cfg.max_leg_odds:
         return False, f"priced longer than +{cfg.max_leg_odds}"
     if s.model_prob < cfg.min_leg_prob:
@@ -939,6 +1022,10 @@ def _ticket_from_legs(legs: Sequence[MarketSide], week: int, ticket_id: str, sou
     note = f"model {p_true:.1%} vs market fair {fair:.1%}; legs: {legs_text}"
     if correlation:
         note += f"; same-game pair, {correlation} correlation (joint probability shown as the independent product, a conservative floor)"
+    groups = {"prop" if leg.is_prop else "game" for leg in legs}
+    experimental = any(leg.experimental for leg in legs)
+    if experimental:
+        note += "; EXPERIMENTAL prop model on " + ", ".join(leg.player or leg.selection for leg in legs if leg.experimental)
     return {
         "ticket_id": ticket_id, "week": week, "n_legs": len(legs),
         "legs": [leg.to_leg_dict() for leg in legs],
@@ -946,6 +1033,7 @@ def _ticket_from_legs(legs: Sequence[MarketSide], week: int, ticket_id: str, sou
         "decimal_odds": round(decimal_odds, 6), "american_odds": decimal_to_american(decimal_odds),
         "edge": round(edge, 6), "rank_score": round(rank_score(p_true, decimal_odds, rank_by), 6),
         "same_game": correlation is not None, "correlation": correlation,
+        "market_group": groups.pop() if len(groups) == 1 else "mixed", "experimental": experimental,
         "notes": note, "source": source,
     }
 
@@ -1110,16 +1198,42 @@ def _selftest() -> int:
     fa, fb = devig_two_way(-110, -110)
     check(abs(fa - 0.5) < 1e-12 and abs(fa + fb - 1) < 1e-12, "devig -110/-110 -> 50/50")
     check(american_from_implied(0.5238) == -110 and american_from_implied(0.40) == 150, "implied -> american")
-    check(parse_selection("Buffalo Bills -3.5") == ("spread", "Buffalo Bills", -3.5, None), "parse spread")
-    check(parse_selection("over 44.5") == ("total", None, 44.5, "Over"), "parse total")
-    check(parse_selection("Kansas City Chiefs ML") == ("moneyline", "Kansas City Chiefs", None, None), "parse ML")
-    check(parse_selection("Buffalo Bills Over 24.5") == ("team_total", "Buffalo Bills", 24.5, "Over"), "parse team total")
-    check(parse_selection("Team Total: Buffalo Bills under 24.5") == ("team_total", "Buffalo Bills", 24.5, "Under"), "parse prefixed team total")
+    check(parse_selection("Buffalo Bills -3.5")[:4] == ("spread", "Buffalo Bills", -3.5, None), "parse spread")
+    check(parse_selection("over 44.5")[:4] == ("total", None, 44.5, "Over"), "parse total")
+    check(parse_selection("Kansas City Chiefs ML")[:4] == ("moneyline", "Kansas City Chiefs", None, None), "parse ML")
+    check(parse_selection("Buffalo Bills Over 24.5")[:4] == ("team_total", "Buffalo Bills", 24.5, "Over"), "parse team total")
+    check(parse_selection("Team Total: Buffalo Bills under 24.5")[:4] == ("team_total", "Buffalo Bills", 24.5, "Under"), "parse prefixed team total")
     try:
         parse_selection("???")
         check(False, "unparseable selection raises")
     except FinderError:
         check(True, "unparseable selection raises FinderError")
+
+    # Player props: the selection grammar comes from markets.json, so a new prop type needs no parser change
+    check(parse_selection("Dak Prescott Over 264.5 Passing Yards") == ("passing_yards", None, 264.5, "Over", "Dak Prescott"), "parse prop over/under")
+    check(parse_selection("CeeDee Lamb Anytime TD") == ("anytime_td", None, None, "Yes", "CeeDee Lamb"), "parse yes/no prop")
+    check(parse_selection("Dak Prescott Under 264.5", "passing_yards") == ("passing_yards", None, 264.5, "Under", "Dak Prescott"), "market hint supplies a missing prop label")
+    check(parse_selection("CeeDee Lamb", "anytime td").player == "CeeDee Lamb" and parse_selection("CeeDee Lamb No", "anytime_td").direction == "No", "hinted yes/no prop")
+    check(parse_selection("Buffalo Bills Over 24.5").player is None, "game markets carry no player")
+    prop_side = MarketSide(week=5, away="A", home="H", market="receiving_yards", selection="X Over 70.5 Receiving Yards", american_odds=-110,
+                           model_prob=0.6, fair_prob=0.5, line=70.5, direction="Over", player="X")
+    prop_side2 = MarketSide(**{**asdict(prop_side), "player": "Y", "selection": "Y Over 70.5 Receiving Yards"})
+    game_side = MarketSide(week=5, away="A", home="H", market="spread", selection="H -3.5", american_odds=-110, model_prob=0.6, fair_prob=0.5, line=-3.5, team="H")
+    check(prop_side.is_prop and prop_side.experimental and not prop_side.high_variance and prop_side.market_label == "Receiving Yards", "prop side knows its registry flags")
+    check(not game_side.is_prop and not game_side.experimental and game_side.market_label == "Spread", "game side is not experimental")
+    check(prop_side.market_key != prop_side2.market_key, "market_key separates two players on the same prop")
+    ld = prop_side.to_leg_dict()
+    check(ld["player"] == "X" and ld["experimental"] is True and ld["market_label"] == "Receiving Yards" and ld["is_prop"] is True, "leg dict carries prop fields")
+    blocked_side = MarketSide(**{**asdict(prop_side), "blocked": "ruled out (injury report: Out)"})
+    ok_b, why_b = leg_passes(blocked_side, FinderConfig(min_leg_prob=0.0, min_prob_gap=0.0))
+    check(not ok_b and "ruled out" in why_b, "blocked side fails the filter with its reason")
+    check(FinderConfig().markets == all_markets() and "passing_yards" in FinderConfig(markets=["spread", "props"]).markets, "markets default to everything; 'props' wildcard expands")
+    check(FinderConfig(markets=["Pass Yds", "ML"]).markets == ("passing_yards", "moneyline"), "market aliases resolve in config")
+    try:
+        FinderConfig(markets=["nope"])
+        check(False, "unknown market in config raises")
+    except FinderError:
+        check(True, "unknown market in config raises FinderError")
 
     # Simulation
     g1 = simulate_week_games(2026, 6, seed=7)
@@ -1247,6 +1361,40 @@ def _selftest() -> int:
             w.writerow(["matchup", "selection", "model_prob"])
             w.writerow(["Green Bay Packers @ Detroit Lions", "Detroit Lions ML", 0.72])
         check(apply_model_probs(sides_csv, load_model_probs_csv(mp)) == 1 and abs(det.model_prob - 0.72) < 1e-12, "model_probs.csv overrides")
+        # Player-prop rows: player column, two-way de-vig, single-sided yes/no, blocked sides, experimental tickets
+        ppath = os.path.join(tmp, "props_lines.csv")
+        with open(ppath, "w", newline="", encoding="utf-8") as fh:
+            w = csv.writer(fh)
+            w.writerow(["week", "away", "home", "market", "selection", "american_odds", "model_prob", "player", "position", "blocked"])
+            w.writerow([6, "Kansas City Chiefs", "Buffalo Bills", "passing_yards", "Josh Allen Over 249.5 Passing Yards", -115, 0.74, "Josh Allen", "QB", ""])
+            w.writerow([6, "Kansas City Chiefs", "Buffalo Bills", "passing_yards", "Josh Allen Under 249.5 Passing Yards", -105, 0.26, "Josh Allen", "QB", ""])
+            w.writerow([6, "Kansas City Chiefs", "Buffalo Bills", "anytime_td", "James Cook Anytime TD", -130, 0.70, "James Cook", "RB", ""])
+            w.writerow([6, "Kansas City Chiefs", "Buffalo Bills", "receiving_yards", "Travis Kelce Over 60.5 Receiving Yards", -110, "", "Travis Kelce", "TE", "ruled out (injury report: Out)"])
+            w.writerow([6, "Kansas City Chiefs", "Buffalo Bills", "receiving_yards", "Travis Kelce Under 60.5 Receiving Yards", -110, "", "Travis Kelce", "TE", "ruled out (injury report: Out)"])
+            w.writerow([6, "Dallas Cowboys", "Philadelphia Eagles", "moneyline", "Philadelphia Eagles ML", -150, 0.75])
+        psides = load_lines_csv(ppath, week=6)
+        allen_o = next(s for s in psides if s.selection.startswith("Josh Allen Over"))
+        allen_u = next(s for s in psides if s.selection.startswith("Josh Allen Under"))
+        check(len(psides) == 6 and allen_o.player == "Josh Allen" and allen_o.position == "QB" and allen_o.is_prop
+              and abs(allen_o.fair_prob + allen_u.fair_prob - 1) < 1e-9, "prop rows load with player, position and a two-way de-vig")
+        cook = next(s for s in psides if s.market == "anytime_td")
+        check(cook.direction == "Yes" and cook.line is None and abs(cook.fair_prob - cook.implied_prob) < 1e-12, "single-sided yes/no prop uses the implied price as fair")
+        kelce = [s for s in psides if s.player == "Travis Kelce"]
+        check(len(kelce) == 2 and all(s.blocked and not leg_passes(s, FinderConfig(min_leg_prob=0, min_prob_gap=0))[0] for s in kelce), "blocked column flows to the side and the filter")
+        t_props = find_parlays(6, config=FinderConfig(source="csv", lines_csv=ppath, top_n=10))
+        check(bool(t_props) and any(t["market_group"] in ("prop", "mixed") for t in t_props)
+              and all(t["experimental"] == any(l["is_prop"] for l in t["legs"]) for t in t_props), f"prop legs form tickets flagged experimental ({len(t_props)})")
+        check(all("EXPERIMENTAL" in t["notes"] for t in t_props if t["experimental"]), "experimental tickets say so in their notes")
+        bad = os.path.join(tmp, "bad_prop.csv")
+        with open(bad, "w", newline="", encoding="utf-8") as fh:
+            w = csv.writer(fh)
+            w.writerow(["week", "away", "home", "market", "selection", "american_odds"])
+            w.writerow([6, "A", "H", "passing_yards", "Over 249.5", -110])
+        try:
+            load_lines_csv(bad)
+            check(False, "prop row without a player raises")
+        except FinderError:
+            check(True, "prop row without a player raises FinderError")
         out = write_parlays_json(t_csv, os.path.join(tmp, "p.json"), 6)
         with open(out, encoding="utf-8") as fh:
             check(len(json.load(fh)["parlays"]) == len(t_csv), "write_parlays_json round trip")
